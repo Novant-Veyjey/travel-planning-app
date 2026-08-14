@@ -217,8 +217,6 @@ onMounted(async () => {
   const input = state?.input || {};
   // 3. 合并：URL 的 to 优先级最高
   destination.value = urlTo || input.目的地 || "";
-  const avatar = state?.avatar || {};
-  avatarEmoji.value = avatar.当地服饰 ? "👘" : (avatar.性别 === "男" ? "🧍‍♂️" : "🧍‍♀️");
 
   // 直达 /map 但无目的地 → 显示空态引导，不强制跳回
   if (!destination.value) {

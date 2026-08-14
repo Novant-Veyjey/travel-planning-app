@@ -43,16 +43,6 @@ export const api = {
   getCityFeature(city) {
     return request(`/city/${encodeURIComponent(city)}`);
   },
-  // 形象
-  getAvatarOptions() {
-    return request("/avatar/options");
-  },
-  getLocalOutfits(city) {
-    return request(`/avatar/local/${city}`);
-  },
-  saveAvatar(data) {
-    return request("/avatar/save", { method: "POST", body: JSON.stringify(data) });
-  },
   // 会话（前后端互通 + 刷新恢复）
   newSession() {
     return request("/session/new", { method: "POST", body: "{}" });
@@ -62,9 +52,6 @@ export const api = {
   },
   saveSessionInput(id, input) {
     return request(`/session/${id}/input`, { method: "POST", body: JSON.stringify({ input }) });
-  },
-  saveSessionAvatar(id, avatar) {
-    return request(`/session/${id}/avatar`, { method: "POST", body: JSON.stringify({ avatar }) });
   },
   saveSessionPlan(id, plan_id, selected_index) {
     return request(`/session/${id}/plan`, {

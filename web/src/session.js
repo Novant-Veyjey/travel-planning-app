@@ -50,15 +50,7 @@ export const session = {
     const id = await this.getOrCreate();
     const res = await api.saveSessionInput(id, input);
     return { id, ...(res || {}) };
-  },
-
-  /** 保存形象 */
-  async saveAvatar(avatar) {
-    const id = await this.getOrCreate();
-    return api.saveSessionAvatar(id, avatar);
-  },
-
-  /** 关联路线 + 选择 */
+  },  /** 关联路线 + 选择 */
   async savePlan(plan_id, selected_index) {
     const id = await this.getOrCreate();
     return api.saveSessionPlan(id, plan_id, selected_index);

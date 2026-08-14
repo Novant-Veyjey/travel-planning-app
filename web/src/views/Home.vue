@@ -105,8 +105,6 @@ async function goNext() {
     alert("保存失败，请检查网络后重试：" + (e.message || ""));
     return;
   }
-  // 保存形象默认值（不阻塞跳转）
-  session.saveAvatar({ 性别: "女", 发型: "双马尾", 服装: "", 当地服饰: false }).catch(() => {});
   // 通过 URL 传 session_id 和出发地/目的地，彻底保证数据互通（不依赖 localStorage/session 读取）
   router.push({
     path: "/routes",

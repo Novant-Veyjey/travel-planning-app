@@ -28,7 +28,6 @@ router.get("/:id", (req, res) => {
   const result = {
     session_id: row.session_id,
     input: row.input_json ? JSON.parse(row.input_json) : null,
-    avatar: row.avatar_json ? JSON.parse(row.avatar_json) : null,
     plan_id: row.plan_id,
     selected_index: row.selected_index,
     destination: row.destination,
@@ -53,17 +52,6 @@ router.post("/:id/input", (req, res) => {
   run(
     "UPDATE sessions SET input_json = ?, destination = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
     JSON.stringify(input), dest, req.params.id
-  );
-  res.json({ ok: true });
-});
-
-// POST /api/session/:id/avatar 保存形象
-router.post("/:id/avatar", (req, res) => {
-  const { avatar } = req.body || {};
-  if (!avatar) return res.status(400).json({ error: "缺少 avatar" });
-  run(
-    "UPDATE sessions SET avatar_json = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
-    JSON.stringify(avatar), req.params.id
   );
   res.json({ ok: true });
 });

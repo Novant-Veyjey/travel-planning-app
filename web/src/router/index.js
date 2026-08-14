@@ -1,12 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Home from "../views/Home.vue";
-import Avatar from "../views/Avatar.vue";
 import Routes from "../views/Routes.vue";
 import MapView from "../views/MapView.vue";
 
 const routes = [
   { path: "/", name: "home", component: Home, meta: { title: "行程规划" } },
-  { path: "/avatar", name: "avatar", component: Avatar, meta: { title: "形象自定义" } },
   { path: "/routes", name: "routes", component: Routes, meta: { title: "选择路线" } },
   { path: "/map", name: "map", component: MapView, meta: { title: "卡通地图" } },
 ];

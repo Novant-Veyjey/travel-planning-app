@@ -75,15 +75,6 @@ async function init() {
   }
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS avatars (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      gender TEXT DEFAULT '女',
-      hair TEXT DEFAULT '双马尾',
-      outfit TEXT DEFAULT '粉色连衣裙',
-      local_outfit TEXT,
-      city TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
     CREATE TABLE IF NOT EXISTS routes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       departure TEXT,
@@ -104,7 +95,6 @@ async function init() {
     CREATE TABLE IF NOT EXISTS sessions (
       session_id TEXT PRIMARY KEY,
       input_json TEXT,
-      avatar_json TEXT,
       plan_id INTEGER,
       selected_index INTEGER,
       destination TEXT,

@@ -7,13 +7,12 @@
 | 模块 | 说明 |
 |------|------|
 | M2 路线生成 | 调用 DeepSeek AI 生成 3 条路线（有 Key 时真实生成，无 Key 时降级模拟数据） |
-| M3/M10 形象 + 当地装扮 | 自定义发型/服装，按目的地动态提供当地民族服饰 |
 | M1 天气场景化 | 天气直接体现在地图页（晴=太阳、雨=下雨+打伞、雪=飘雪） |
 | M5 第三方 POI | 打卡点数据接口（演示数据，可换高德/百度） |
 | M6 路线选择 | 3 条路线选 1 条后进入地图 |
-| M9 交通推荐 | 每段行程推荐交通方式 + 耗时 |
-| SQLite 存储 | 保存形象、路线、选择记录 |
-| 会话持久化 | 用户输入/形象/路线选择存后端 SQLite，刷新页面数据不丢失，前后端数据互通 |
+| M9 交通推荐 | 每段行程推荐交通方式 + 耗时（基于真实城市对耗时估算） |
+| SQLite 存储 | 保存路线、选择记录、会话 |
+| 会话持久化 | 用户输入/路线选择存后端 SQLite，刷新页面数据不丢失，前后端数据互通 |
 
 ## 项目结构
 ```
@@ -23,12 +22,12 @@ Claw/
 │   │   ├── index.js     # 入口
 │   │   ├── db.js        # SQLite 数据库
 │   │   ├── ai.js        # AI 路线生成
-│   │   └── routes/      # weather/poi/avatar/plan 路由
+│   │   └── routes/      # weather/poi/plan 路由
 │   ├── .env             # API Key 配置
 │   └── package.json
 ├── web/                 # Vue 3 前端 (Vite)
 │   ├── src/
-│   │   ├── views/       # Home / Avatar / Routes / MapView
+│   │   ├── views/       # Home / Routes / MapView
 │   │   └── api/
 │   ├── vite.config.js   # 含 /api 代理
 │   └── package.json
@@ -93,12 +92,9 @@ npm start
 | GET | /api/weather/:city | 获取天气 |
 | POST | /api/weather/scenario | 天气场景配置（雨/雪/晴） |
 | GET | /api/poi/search | 搜索打卡点 |
-| GET | /api/avatar/local/:city | 当地民族服饰库 |
-| POST | /api/avatar/save | 保存形象 |
 | POST | /api/session/new | 创建行程会话 |
 | GET | /api/session/:id | 获取会话状态（刷新恢复） |
 | POST | /api/session/:id/input | 保存用户输入 |
-| POST | /api/session/:id/avatar | 保存形象 |
 | POST | /api/session/:id/plan | 关联路线+选择 |
 
 ## 待接入（PRD 开放问题）

@@ -10,7 +10,6 @@ import { fileURLToPath } from "url";
 
 import weatherRouter from "./routes/weather.js";
 import poiRouter from "./routes/poi.js";
-import avatarRouter from "./routes/avatar.js";
 import planRouter from "./routes/plan.js";
 import sessionRouter from "./routes/session.js";
 import cityRouter from "./routes/city.js";
@@ -31,7 +30,6 @@ app.get("/api/health", (req, res) => {
 // 注册路由
 app.use("/api/weather", weatherRouter);
 app.use("/api/poi", poiRouter);
-app.use("/api/avatar", avatarRouter);
 app.use("/api/plan", planRouter);
 app.use("/api/session", sessionRouter);
 app.use("/api/city", cityRouter);
