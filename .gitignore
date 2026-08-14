@@ -1,0 +1,44 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 构建产物
+web/dist/
+dist/
+
+# 环境变量（含 API Key，绝不能提交）
+.env
+**/.env
+
+# 数据库文件
+*.db
+*.sqlite
+server/data/
+
+# 日志
+*.log
+server/*.log
+
+# 测试临时文件
+home_fill.js
+test_*.mjs
+b64.mjs
+check_sess.mjs
+fill_home.mjs
+gen_b64.mjs
+new_session.mjs
+verify*.mjs
+measure*.mjs
+utf8_test.mjs
+web/.playwright-cli/
+web/routes_*.yml
+web/routes_*.png
+
+# 本地启动脚本
+start_server.bat
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+*.tmp
