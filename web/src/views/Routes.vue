@@ -3,7 +3,7 @@
     <div class="topbar">
       <button class="back" @click="goHome">←</button>
       <h1>我的行程</h1>
-      <span v-if="destination" class="weather">☀️ {{ weather }}°</span>
+      <span v-if="destination" class="weather">{{ weatherIcon }} {{ weather }}°</span>
     </div>
 
     <!-- 加载中 -->
@@ -126,6 +126,7 @@ const departure = ref("");
 const destination = ref("");
 const days = ref(4);
 const weather = ref(26);
+const weatherIcon = ref("☀️");
 const loading = ref(true);
 
 const fromFeature = reactive({ 特色建筑: [], 地形: [], 特色元素: [], 图片键: "" });
@@ -250,6 +251,7 @@ onMounted(async () => {
   try {
     const sc = await api.getScenario(destination.value).catch(() => ({ 温度: 26 }));
     weather.value = sc.温度 ?? 26;
+    weatherIcon.value = sc.图标 || "☀️";
   } catch (e) { /* 忽略 */ }
 
   try {

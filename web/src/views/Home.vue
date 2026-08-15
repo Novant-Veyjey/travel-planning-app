@@ -2,7 +2,7 @@
   <div class="phone">
     <div class="topbar">
       <h1>✈️ 行程规划</h1>
-      <span class="weather">☀️ 晴 26°</span>
+      <span class="weather">{{ weatherIcon }} {{ weatherText }}</span>
     </div>
 
     <div class="card">
@@ -38,9 +38,10 @@
 </template>
 
 <script setup>
-import { reactive, onMounted } from "vue";
+import { reactive, ref, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { session } from "../session.js";
+import { api } from "../api/index.js";
 
 const router = useRouter();
 const form = reactive({
@@ -50,11 +51,39 @@ const form = reactive({
   偏好: ["美食"],
 });
 
+// 顶部天气：跟随当前输入的出发地/目的地实时刷新，默认显示南昌
+const weatherIcon = ref("☀️");
+const weatherText = ref("正在获取…");
+async function loadWeather(city) {
+  if (!city) city = "南昌";
+  try {
+    const w = await api.getWeather(city);
+    weatherIcon.value = w.图标 || "☀️";
+    weatherText.value = `${w.天气} ${w.温度}°`;
+  } catch (e) {
+    weatherText.value = "晴 --°";
+  }
+}
+
 function togglePreference(p) {
   const i = form.偏好.indexOf(p);
   if (i >= 0) form.偏好.splice(i, 1);
   else form.偏好.push(p);
 }
+
+// 输入变化时刷新对应城市天气
+watch(
+  () => form.目的地,
+  (v) => {
+    if (v) loadWeather(v);
+  }
+);
+watch(
+  () => form.出发地,
+  (v) => {
+    if (v) loadWeather(v);
+  }
+);
 
 onMounted(async () => {
   // 1. 优先从 URL query 恢复（从 Routes/Map 返回时带的参数，数据不丢）
@@ -74,6 +103,8 @@ onMounted(async () => {
   } catch (e) {
     console.error("恢复会话失败:", e);
   }
+  // 3. 加载顶部天气
+  await loadWeather(form.目的地 || form.出发地);
 });
 
 async function goNext() {

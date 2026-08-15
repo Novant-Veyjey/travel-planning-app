@@ -37,6 +37,9 @@ web/routes_*.png
 # 本地启动脚本
 start_server.bat
 
+# 部署临时目录
+deploy_tmp/
+
 # 编辑器/系统
 .vscode/
 .idea/

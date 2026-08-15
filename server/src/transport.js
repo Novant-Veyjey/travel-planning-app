@@ -202,4 +202,4 @@ function getTransportOptions(from, to) {
   return options;
 }
 
-export { getTransportOptions };
+export { getTransportOptions, CITY_COORDS };

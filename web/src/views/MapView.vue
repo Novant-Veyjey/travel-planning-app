@@ -4,7 +4,7 @@
       <button class="back" @click="$router.back()">←</button>
       <h1>当前导航</h1>
       <div class="topbar-right">
-        <span class="weather">☀️ {{ weather.温度 }}°</span>
+        <span class="weather">{{ weather.图标 }} {{ weather.温度 }}°</span>
         <button class="exit-btn" @click="exitToHome" title="退出并保留数据">退出</button>
       </div>
     </div>
@@ -30,7 +30,7 @@
       </div>
       <!-- 太阳（晴天） -->
       <div v-if="scenario.太阳" class="sun">☀️</div>
-      <div v-if="scenario.太阳" class="sun-temp">晴 {{ weather.温度 }}°</div>
+      <div v-if="scenario.太阳" class="sun-temp">{{ weather.天气 }} {{ weather.温度 }}°</div>
 
       <!-- 地形与建筑（按当前站点动态切换 + 位置变化） -->
       <div class="terrain-layer">
@@ -98,7 +98,7 @@ import { session } from "../session.js";
 
 const router = useRouter();
 
-const weather = reactive({ 温度: 25, 天气: "晴" });
+const weather = reactive({ 温度: 25, 天气: "晴", 图标: "☀️" });
 const scenario = reactive({ 场景: "sunny", 太阳: true, 雨滴: 0, 雪花: 0, 配饰: "墨镜" });
 const destination = ref("");
 const avatarEmoji = ref("🧍‍♀️");
