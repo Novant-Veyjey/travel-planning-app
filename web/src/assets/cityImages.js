@@ -30,6 +30,10 @@ import guangzhouTower from "./cities/guangzhou-tower.png";
 import guangzhouDimsum from "./cities/guangzhou-dimsum.png";
 import fujianTulou from "./cities/fujian-tulou.png";
 import hainanBeach from "./cities/hainan-beach.png";
+import harbinSophiaChurch from "./cities/harbin-sophia-church.png";
+import harbinIceWorld from "./cities/harbin-ice-world.png";
+import harbinCuisine from "./cities/harbin-cuisine.png";
+import cityGeneric from "./cities/city-generic.png";
 
 export const CITY_IMAGES = {
   "tengwang-pavilion": tengwangPavilion,
@@ -59,6 +63,10 @@ export const CITY_IMAGES = {
   "guangzhou-dimsum": guangzhouDimsum,
   "fujian-tulou": fujianTulou,
   "hainan-beach": hainanBeach,
+  "harbin-sophia-church": harbinSophiaChurch,
+  "harbin-ice-world": harbinIceWorld,
+  "harbin-cuisine": harbinCuisine,
+  "city-generic": cityGeneric,
 };
 
 /** 根据图片键字符串（逗号分隔，顺序：建筑,地形,元素）解析为图片 URL 数组 */

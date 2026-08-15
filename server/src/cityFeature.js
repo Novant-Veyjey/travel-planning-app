@@ -17,6 +17,7 @@ const PROVINCE_IMAGE_KEYS = {
   广东: "guangzhou-tower,guangzhou-dimsum,guangzhou-dimsum",
   福建: "fujian-tulou,fujian-tulou,fujian-tulou",
   海南: "hainan-beach,hainan-beach,hainan-beach",
+  黑龙江: "harbin-sophia-church,harbin-ice-world,harbin-cuisine",
 };
 
 const CITY_FEATURES = {
@@ -164,6 +165,15 @@ const CITY_FEATURES = {
     地形emoji: "🌊",
     元素emoji: "🦞",
   },
+  哈尔滨: {
+    省份: "黑龙江",
+    特色建筑: ["圣索菲亚大教堂", "中央大街", "防洪纪念塔"],
+    地形: ["松花江", "冰雪大世界", "亚布力滑雪场"],
+    特色元素: ["冰雕", "锅包肉", "红肠", "冰糖葫芦"],
+    建筑emoji: "⛪",
+    地形emoji: "❄️",
+    元素emoji: "🍖",
+  },
 };
 
 /** 根据城市名获取当地特色（找不到返回通用） */
@@ -182,13 +192,14 @@ export function getCityFeature(city) {
     "江西": "南昌", "江西省": "南昌",
     "福建": "福州", "福建省": "福州",
     "海南": "海口", "海南省": "海口",
+    "黑龙江": "哈尔滨", "黑龙江省": "哈尔滨",
   };
   const key = ALIASES[city] || ALIASES[city.replace(/[省市自治区]+$/, "")] || city;
   const f = CITY_FEATURES[key] || CITY_FEATURES[city];
   if (f) {
     return {
       ...f,
-      图片键: PROVINCE_IMAGE_KEYS[f.省份] || "tengwang-pavilion,lushan-mountain,jingdezhen-porcelain",
+      图片键: PROVINCE_IMAGE_KEYS[f.省份] || "city-generic,city-generic,city-generic",
     };
   }
   return {
@@ -199,7 +210,7 @@ export function getCityFeature(city) {
     建筑emoji: "🏙️",
     地形emoji: "🏞️",
     元素emoji: "🍜",
-    图片键: "tengwang-pavilion,lushan-mountain,jingdezhen-porcelain",
+    图片键: "city-generic,city-generic,city-generic",
   };
 }
 
