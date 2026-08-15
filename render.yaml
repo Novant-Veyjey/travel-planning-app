@@ -1,0 +1,19 @@
+# Render 部署配置（Web Service）
+# 在 Render 网页端点击 "New > Blueprint"，粘贴本仓库即可自动创建服务
+services:
+  - type: web
+    name: travel-planner
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && cd ../web && npm install && npm run build
+    startCommand: node src/index.js
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DEEPSEEK_API_KEY
+        sync: false # 部署后在 Render 网页上手动填写，避免泄露
+      - key: AI_BASE_URL
+        value: https://api.deepseek.com
+      - key: AI_MODEL
+        value: deepseek-v4-flash

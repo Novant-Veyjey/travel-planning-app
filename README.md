@@ -81,3 +81,14 @@ cd web && npm run build
 ## 部署
 
 构建前端产物由后端托管（`server/src/index.js` 已配置 SPA 回退）。部署时只需启动 `server/src/index.js` 在 3000 端口即可。
+
+### 一键部署到 Render（免费，给他人"点开就用"的链接）
+
+1. 注册并登录 https://render.com （可用 GitHub 账号登录）
+2. 点 **New +** → **Blueprint**
+3. 选择本仓库，Render 会读取根目录的 `render.yaml` 自动创建服务
+4. 服务创建后，进入该服务 → **Environment** 标签
+5. 找到 `DEEPSEEK_API_KEY` 变量，点 **Edit**，填入你的 DeepSeek API Key，保存
+6. 等它构建完成（约 2-3 分钟），点 **Rendered URL** 即是你的永久链接，发出去别人就能点开用
+
+> 注意：`render.yaml` 会自动执行 `npm install` 并构建前端（`web/dist`），无需手动操作。
