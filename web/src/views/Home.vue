@@ -22,14 +22,6 @@
         </select>
       </div>
       <div class="field">
-        <label>精力状态</label>
-        <select v-model="form.精力状态">
-          <option value="轻松">😌 轻松</option>
-          <option value="正常">🙂 正常</option>
-          <option value="特种兵">💪 特种兵</option>
-        </select>
-      </div>
-      <div class="field">
         <label>偏好（可多选）</label>
         <div class="chips">
           <span v-for="p in ['美食','人文','自然','购物']" :key="p"
@@ -55,7 +47,6 @@ const form = reactive({
   出发地: "",
   目的地: "",
   游玩天数: 3,
-  精力状态: "正常",
   偏好: ["美食"],
 });
 

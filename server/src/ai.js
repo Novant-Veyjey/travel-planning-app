@@ -146,51 +146,83 @@ function mockRoutes(input) {
     pushPoi(`${base}·${s}`, ["人文历史", "休闲街区", "夜游", "人文历史", "自然风光", "休闲街区", "标志性景点"][i])
   );
 
-  // 按天分配，保证全行程不重复
-  const daily = [];
-  let cursor = 0;
-  for (let d = 1; d <= days; d++) {
-    const pois = [];
-    const slots = d % 2 === 0 ? 3 : 4;
-    for (let k = 0; k < slots; k++) {
-      const p = pool[cursor % pool.length];
-      cursor++;
-      const hour = 9 + k * 3;
-      pois.push({
-        名称: p.name,
-        类型: p.type,
-        推荐时间: `${String(hour).padStart(2, "0")}:00-${String(hour + 2).padStart(2, "0")}:00`,
-        交通: {
-          推荐方式: k === 0 ? "地铁" : "打车",
-          替代方式: ["公交", "步行"],
-          耗时: `${15 + k * 10}min`,
-          推荐理由: "避开高峰，直达便捷",
-        },
-        注意事项: "建议提前线上预约",
+  // 每条路线根据强度生成不同的日程（观景点/节奏/强度都不同）
+  const STYLE_CONF = {
+    休闲: {
+      路线名: `${base}·休闲路线`,
+      适合人群: "亲子/老人",
+      亮点: "节奏轻松、慢游为主，每天只去精挑的2-3个点，留足休息时间",
+      每日打卡点: [2, 3, 2, 3], // 每天打卡点数量（按天循环）
+      地形: ["平原", "湖畔", "园林", "古镇"],
+      强度词: "宽松",
+    },
+    经典: {
+      路线名: `${base}·经典路线`,
+      适合人群: "大多数游客",
+      亮点: "覆盖核心景点与当地特色，节奏适中",
+      每日打卡点: [3, 4, 3, 4],
+      地形: ["城区", "名胜", "街区", "自然"],
+      强度词: "适中",
+    },
+    特种兵: {
+      路线名: `${base}·特种兵路线`,
+      适合人群: "体力好的人",
+      亮点: "全天高效暴走，每天塞满6个打卡点，打卡密度拉满",
+      每日打卡点: [5, 6, 5, 6],
+      地形: ["都市", "山野", "江河", "环城"],
+      强度词: "高",
+    },
+  };
+
+  const makeDaily = (strength) => {
+    const conf = STYLE_CONF[strength] || STYLE_CONF["经典"];
+    const daily = [];
+    let cursor = 0; // 每条路线独立的景点游标，保证本路线不重复
+    for (let d = 1; d <= days; d++) {
+      const pois = [];
+      const slots = conf.每日打卡点[(d - 1) % conf.每日打卡点.length] || 3;
+      // 休闲路线结束早（18点前），特种兵到晚上（22点）
+      const startHour = strength === "特种兵" ? 7 : 9;
+      for (let k = 0; k < slots; k++) {
+        const p = pool[cursor % pool.length];
+        cursor++;
+        const h = startHour + k * 2.5;
+        const hh = Math.floor(h);
+        const mm = Math.round((h - hh) * 60);
+        pois.push({
+          名称: p.name,
+          类型: p.type,
+          推荐时间: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}-${String(hh + 2).padStart(2, "0")}:00`,
+          交通: {
+            推荐方式: k === 0 ? "地铁" : "打车",
+            替代方式: ["公交", "步行"],
+            耗时: `${15 + k * 10}min`,
+            推荐理由: "避开高峰，直达便捷",
+          },
+          注意事项: strength === "特种兵" ? "需预留排队时间" : "建议提前线上预约",
+        });
+      }
+      daily.push({
+        第几天: d,
+        天气: "晴 " + (22 + d % 5) + "°C",
+        地形: conf.地形[(d - 1) % conf.地形.length],
+        民族特色: { 民族: "当地民族", 特色建筑: 建筑.slice(0, 2), 民族元素: 元素.slice(0, 2) },
+        当地建筑: 建筑.slice(0, 3) || [],
+        打卡点: pois,
       });
     }
-    daily.push({
-      第几天: d,
-      天气: "晴 " + (22 + d % 5) + "°C",
-      地形: d === 1 ? "平原" : (d % 2 === 0 ? "山地" : "水乡"),
-      民族特色: { 民族: "当地民族", 特色建筑: 建筑.slice(0, 2), 民族元素: 元素.slice(0, 2) },
-      当地建筑: 建筑.slice(0, 3) || [],
-      打卡点: pois,
-    });
-  }
+    return daily;
+  };
 
-  const styles = [
-    { 路线名: `${base}·休闲路线`, 适合人群: "亲子/老人", 强度: "休闲", 亮点: "节奏轻松，慢游为主" },
-    { 路线名: `${base}·经典路线`, 适合人群: "大多数游客", 强度: "经典", 亮点: "覆盖核心景点" },
-    { 路线名: `${base}·特种兵路线`, 适合人群: "体力好的人", 强度: "特种兵", 亮点: "高效打卡，全天暴走" },
-  ];
+  const styles = ["休闲", "经典", "特种兵"];
   // 全程交通耗时：根据出发地→目的地查真实城市对耗时表
   const 全程交通 = getTransportOptions(input.出发地, base);
   return {
-    routes: styles.map((s) => ({
-      ...s,
+    routes: styles.map((strength) => ({
+      ...STYLE_CONF[strength],
+      强度: strength,
       全程交通,
-      每日行程: daily.map((d) => ({ ...d, 打卡点: d.打卡点.map((p) => ({ ...p })) })),
+      每日行程: makeDaily(strength),
     })),
   };
 }
