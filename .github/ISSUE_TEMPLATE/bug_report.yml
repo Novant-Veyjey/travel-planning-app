@@ -1,0 +1,40 @@
+name: Bug 报告
+description: 报告可复现的功能、界面或部署问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请说明实际表现和预期表现。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开...
+        2. 输入...
+        3. 点击...
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      placeholder: 浏览器、操作系统、Node.js 版本
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 请移除 API Key、个人位置等敏感信息。
+    validations:
+      required: false

@@ -1,80 +1,159 @@
-# 卡通地图旅游计划生成 App
+# 旅行计划生成 App
 
-输入出发地/目的地/天数，结合天气地形与 AI，生成 3 条游玩路线（休闲/经典/特种兵），并在卡通地图中实时导航。
+[![CI](https://github.com/Novant-Veyjey/travel-planning-app/actions/workflows/ci.yml/badge.svg)](https://github.com/Novant-Veyjey/travel-planning-app/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Vue](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
+
+输入出发地、目的地、游玩天数与偏好，结合实时天气、城市特色、交通耗时和 AI，生成休闲、经典、特种兵三类路线，并提供卡通地图、实时导航与 GPS 步行导航。
+
+![路线选择页面](docs/assets/screenshots/routes.png)
 
 ## 功能
 
-- **路线生成**：3 条路线（休闲/经典/特种兵），AI 按目的地特色生成，观景点与日程差异化
-- **天气场景化**：地图页直接呈现天气（晴/雨/雪）
-- **交通推荐**：每段行程推荐交通方式 + 耗时（基于真实城市对耗时）
-- **路线选择**：3 选 1 进入地图
-- **卡通导航**：地图随打卡点切换，人物沿路线实时跟随
-- **数据持久化**：用户输入与路线存后端 SQLite，刷新不丢
-- **前后端互通**：URL 携带数据参数 + session_id
+- 一次生成 3 条差异化路线，并按目的地、天数、天气和偏好动态编排日程
+- 接入 Open-Meteo，展示实时天气、温度和天气场景动画
+- 根据真实城市间耗时与景点间距离，推荐步行、骑行、公交、地铁或打车
+- 卡通地图随打卡点切换，人物沿路线移动并同步行程时间
+- GPS 步行导航基于真实经纬度绘制水系、道路与 3D 建筑
+- 使用 SQLite 持久化会话与路线，刷新页面后可继续规划
+- 未配置 AI Key 时使用本地模拟数据，便于直接启动和体验
+
+## 技术栈
+
+| 模块 | 技术 |
+| --- | --- |
+| 前端 | Vue 3、Vue Router、Vite |
+| 后端 | Node.js、Express |
+| 数据 | SQLite（sql.js） |
+| AI | DeepSeek API，兼容 OpenAI Chat Completions 格式 |
+| 天气 | Open-Meteo |
+| 部署 | Render Blueprint |
 
 ## 项目结构
 
-```
-Claw/
-├── server/              # Node.js 后端 (Express + SQLite)
+```text
+travel-planning-app/
+├── .github/                    # CI、Issue 与 PR 模板
+├── docs/
+│   ├── assets/                 # 截图与产品原型
+│   ├── feature-breakdown.md    # 功能模块拆解
+│   ├── product-requirements.md # 产品需求文档
+│   └── README.md               # 文档索引
+├── server/
 │   ├── src/
-│   │   ├── index.js     # 入口，托管前端 dist
-│   │   ├── db.js        # SQLite 数据库
-│   │   ├── ai.js        # AI 路线生成（含真实城市间耗时表）
-│   │   ├── cityFeature.js  # 省份特色数据
-│   │   ├── transport.js    # 交通耗时估算
-│   │   └── routes/      # weather/poi/plan/session 路由
-│   ├── .env             # API Key 配置（不上传 GitHub）
+│   │   ├── routes/             # weather / poi / plan / session / city / geo
+│   │   ├── ai.js               # AI 路线生成
+│   │   ├── cityFeature.js      # 城市特色数据
+│   │   ├── db.js               # SQLite 初始化与持久化
+│   │   ├── geo.js              # 真实地理数据与距离计算
+│   │   ├── index.js            # Express 入口
+│   │   └── transport.js        # 交通方式与耗时估算
 │   └── package.json
-├── web/                 # Vue 3 前端
+├── web/
 │   ├── src/
-│   │   ├── views/       # Home / Routes / MapView
-│   │   ├── api/         # API 封装
-│   │   ├── assets/      # 卡通插画等静态资源
-│   │   └── router/      # Vue Router
+│   │   ├── api/                # 后端接口封装
+│   │   ├── assets/             # 城市插画、图标与样式
+│   │   ├── components/         # 头像与真实地图组件
+│   │   ├── router/             # Vue Router
+│   │   └── views/              # Home / Routes / MapView / WalkNav
 │   ├── vite.config.js
 │   └── package.json
+├── .env.example
+├── .gitignore
+├── render.yaml
 └── README.md
 ```
 
-## 快速启动
+## 本地运行
 
-### 1. 安装依赖
+### 环境要求
+
+- Node.js 18.18 或更高版本
+- npm 9 或更高版本
+
+### 安装依赖
+
 ```bash
-cd server && npm install
-cd ../web && npm install
+git clone https://github.com/Novant-Veyjey/travel-planning-app.git
+cd travel-planning-app
+
+npm ci --prefix server
+npm ci --prefix web
 ```
 
-### 2. 配置 API Key（可选）
-复制 `.env.example` 为 `server/.env`，填入 DeepSeek Key：
-```
-DEEPSEEK_API_KEY=你的Key
-```
-无 Key 也能跑，会用模拟数据生成路线。
+### 配置 AI Key（可选）
 
-### 3. 启动
+PowerShell：
+
+```powershell
+Copy-Item .env.example server\.env
+```
+
+macOS / Linux：
+
 ```bash
-# 启动后端（同时托管前端构建产物）
-cd server
-node src/index.js
-```
-构建前端后访问 `http://localhost:3000` 即可使用：
-```bash
-cd web && npm run build
+cp .env.example server/.env
 ```
 
-## 主要 API
+在 `server/.env` 中填写 DeepSeek Key：
+
+```dotenv
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+```
+
+如果没有 Key，服务会自动使用本地模拟数据生成路线。
+
+### 开发模式
+
+分别打开两个终端：
+
+```bash
+npm --prefix server run dev
+```
+
+```bash
+npm --prefix web run dev
+```
+
+前端地址为 `http://localhost:5173`，Vite 会把 `/api` 请求代理到后端。
+
+### 生产模式
+
+```bash
+npm --prefix web run build
+npm --prefix server run start
+```
+
+打开 `http://localhost:3000`。
+
+## API
 
 | 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | /api/plan/generate | 生成 3 条路线 |
-| POST | /api/plan/select | 选择 1 条路线 |
-| GET | /api/plan/:id | 获取路线 |
-| GET | /api/city/:name | 城市特色 + 图片键 |
-| POST | /api/weather/scenario | 天气场景配置 |
-| GET | /api/poi/search | 搜索打卡点 |
-| POST | /api/session/new | 创建行程会话 |
-| GET | /api/session/:id | 获取会话（刷新恢复） |
-| POST | /api/session/:id/input | 保存用户输入 |
-| POST | /api/session/:id/plan | 关联路线+选择 |
+| --- | --- | --- |
+| GET | `/api/health` | 服务与 AI Key 状态 |
+| POST | `/api/plan/generate` | 生成 3 条路线 |
+| POST | `/api/plan/select` | 选择 1 条路线 |
+| GET | `/api/plan/:id` | 获取已保存路线 |
+| GET | `/api/weather/:city` | 获取实时天气 |
+| POST | `/api/weather/scenario` | 获取天气场景配置 |
+| GET | `/api/poi/search?city=成都&keyword=熊猫` | 搜索打卡点 |
+| GET | `/api/city/:name` | 获取城市特色 |
+| GET | `/api/geo/:city` | 获取水系、道路和 3D 建筑数据 |
+| GET | `/api/geo/nearby` | 查询附近景点与步行耗时 |
+| GET | `/api/geo/walk` | 计算两点步行距离与耗时 |
+| POST | `/api/session/new` | 创建行程会话 |
+| GET | `/api/session/:id` | 恢复行程会话 |
 
+## 部署
+
+仓库包含 [render.yaml](render.yaml)。在 Render 中创建 Blueprint 后，按提示配置 `DEEPSEEK_API_KEY` 即可部署。
+
+## 文档
+
+- [产品需求](docs/product-requirements.md)
+- [功能模块拆解](docs/feature-breakdown.md)
+- [文档索引](docs/README.md)
+
+## 参与贡献
+
+提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。请勿提交 `.env`、数据库文件、构建产物和其他本地运行数据。

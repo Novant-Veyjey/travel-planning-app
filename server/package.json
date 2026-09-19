@@ -1,9 +1,13 @@
 {
   "name": "travel-planner-server",
   "version": "0.1.0",
+  "private": true,
   "description": "卡通地图旅游计划生成App - Node.js后端",
   "type": "module",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=18.18"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
