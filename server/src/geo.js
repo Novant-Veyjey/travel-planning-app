@@ -3,7 +3,7 @@
  * - 水系、道路：按真实走向简化的折线，坐标点落在真实经纬度位置
  * - 建筑：著名景点真实坐标 + 真实高度，供地图 3D 立体呈现与 GPS 步行导航使用
  */
-import { POI_COORDS } from "./transport.js";
+import { POI_COORDS, poiCoord } from "./transport.js";
 
 // 环线道路：以真实城市中心为圆心、按真实半径(km)生成的地面圆环
 function ring(lat0, lon0, rKm, n = 30) {
@@ -313,6 +313,18 @@ export function getNearby(city, lat, lon, radiusKm = 1.5, limit = 8) {
     return all.slice(0, limit);
   }
   return list.sort((a, b) => a.距离 - b.距离).slice(0, limit);
+}
+
+/**
+ * 按名称批量取真实坐标（行程打卡点上实景地图用）
+ * 真实坐标库 → 城市中心派生兜底，保证每个打卡点都能落到地图上
+ */
+export function coordsFor(city, names = []) {
+  const center = CITY_GEO[city]?.中心 || null;
+  return names.map((name) => {
+    const c = poiCoord(name, city) || center;
+    return { 名称: name, 纬度: c ? c[0] : null, 经度: c ? c[1] : null };
+  });
 }
 
 /** 两点间的真实步行耗时（分钟）与距离（米） */

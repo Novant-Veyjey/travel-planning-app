@@ -339,6 +339,11 @@ function planCityTraffic(city, from, to, prefer) {
   };
 }
 
+/** 对外暴露：按名称取真实坐标（供 GPS 实景地图定位打卡点） */
+function poiCoord(poi, city) {
+  return getPoiCoord(poi, city);
+}
+
 // 按真实距离推荐市内交通方式（近走远打车，中间地铁）
 function recommendCityMode(city, poiA, poiB) {
   const plan = planCityTraffic(city, poiA, poiB);
@@ -471,4 +476,5 @@ export {
   planCityTraffic,
   cityRoadKm,
   resolveCity,
+  poiCoord,
 };

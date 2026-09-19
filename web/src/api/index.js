@@ -51,6 +51,12 @@ export const api = {
   getNearby(city, lat, lon, r = 1.5) {
     return request(`/geo/nearby?city=${encodeURIComponent(city)}&lat=${lat}&lon=${lon}&r=${r}`);
   },
+  // 行程打卡点的真实坐标（实景地图定位用）
+  getPoiCoords(city, names = []) {
+    const q = encodeURIComponent(city);
+    const n = encodeURIComponent(names.join("|"));
+    return request(`/geo/coords?city=${q}&names=${n}`);
+  },
   // 两点步行耗时
   getWalkInfo(lat, lon, tlat, tlon) {
     return request(`/geo/walk?lat=${lat}&lon=${lon}&tlat=${tlat}&tlon=${tlon}`);

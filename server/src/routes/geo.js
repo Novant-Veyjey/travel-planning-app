@@ -4,9 +4,22 @@
  * GET /api/geo/nearby        → 按真实坐标返回周边景点与步行耗时
  */
 import { Router } from "express";
-import { getCityGeo, getNearby, walkInfo } from "../geo.js";
+import { getCityGeo, getNearby, walkInfo, coordsFor } from "../geo.js";
 
 const router = Router();
+
+// GET /api/geo/coords?city=成都&names=宽窄巷子|武侯祠  → 行程打卡点的真实坐标
+router.get("/coords", (req, res) => {
+  const city = req.query.city || "";
+  const names = String(req.query.names || "")
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!city || !names.length) {
+    return res.status(400).json({ error: "缺少 city/names" });
+  }
+  res.json({ 城市: city, 打卡点: coordsFor(city, names) });
+});
 
 // GET /api/geo/nearby?city=成都&lat=30.66&lon=104.07&r=1.5
 router.get("/nearby", (req, res) => {
