@@ -407,15 +407,22 @@ function haversine([lat1, lon1], [lat2, lon2]) {
 }
 
 /**
+ * 飞机的固定开销（小时）：值机安检 + 候机 + 机场↔市区接驳
+ * 本地数据里"飞机"按纯飞行时间记录，展示时统一补成门到门口径，
+ * 否则会出现"飞机 1.5h vs 高铁 4h"这种口径不一致的假优势
+ */
+const FLIGHT_OVERHEAD_H = 2;
+
+/**
  * 按直线距离估算城际耗时（公里）——仅在真实时刻表未覆盖该城市对时使用
  * 高铁：铁路绕行系数 1.2、旅速 250km/h，另加候车/接驳 0.4h
  * 自驾：公路绕行系数 1.25、综合旅速 95km/h（已含服务区休息）
- * 飞机：500km 以上才有意义，固定开销 2h（值机安检 + 机场往返）+ 700km/h 巡航
+ * 飞机：500km 以上才有意义，返回纯飞行时间（固定开销在展示时统一补）
  */
 function estimateByDistance(distanceKm) {
   const 高铁 = Math.max(0.8, +((distanceKm * 1.2) / 250 + 0.4).toFixed(1));
   const 自驾 = Math.max(1.0, +((distanceKm * 1.25) / 95).toFixed(1));
-  const 飞机 = distanceKm > 500 ? +(2 + distanceKm / 700).toFixed(1) : null;
+  const 飞机 = distanceKm > 500 ? +(distanceKm / 700).toFixed(1) : null;
   return { 高铁, 飞机, 自驾 };
 }
 
@@ -449,6 +456,10 @@ function getTransportOptions(from, to, aiTimes) {
   const base = getTransportTimes(from, to);
   // 本地无该城市对数据时留空，等 AI 实时查询补；仍拿不到就不展示（不编造耗时）
   const times = { ...(base || { 高铁: null, 飞机: null, 自驾: null }) };
+  // 统一口径：本地表的飞机是纯飞行时间，补上机场固定开销后再与其他方式比较
+  if (typeof times.飞机 === 'number') {
+    times.飞机 = Math.round((times.飞机 + FLIGHT_OVERHEAD_H) * 10) / 10;
+  }
 
   // AI 实时耗时优先：只有在拿到至少一个有效值后才信任其 null（表示确无该方式）
   let aiHits = 0;
