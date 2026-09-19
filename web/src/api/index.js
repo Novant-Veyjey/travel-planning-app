@@ -43,6 +43,18 @@ export const api = {
   getCityFeature(city) {
     return request(`/city/${encodeURIComponent(city)}`);
   },
+  // 真实地理：水系 / 道路 / 立体建筑（真实经纬度）
+  getCityGeo(city) {
+    return request(`/geo/${encodeURIComponent(city)}`);
+  },
+  // 周边推荐：按真实 GPS 坐标返回附近景点与步行耗时
+  getNearby(city, lat, lon, r = 1.5) {
+    return request(`/geo/nearby?city=${encodeURIComponent(city)}&lat=${lat}&lon=${lon}&r=${r}`);
+  },
+  // 两点步行耗时
+  getWalkInfo(lat, lon, tlat, tlon) {
+    return request(`/geo/walk?lat=${lat}&lon=${lon}&tlat=${tlat}&tlon=${tlon}`);
+  },
   // 会话（前后端互通 + 刷新恢复）
   newSession() {
     return request("/session/new", { method: "POST", body: "{}" });

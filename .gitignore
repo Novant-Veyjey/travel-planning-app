@@ -33,6 +33,7 @@ utf8_test.mjs
 web/.playwright-cli/
 web/routes_*.yml
 web/routes_*.png
+web/shot-*.png
 
 # 本地启动脚本
 start_server.bat

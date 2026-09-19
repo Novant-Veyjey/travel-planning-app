@@ -64,6 +64,7 @@
             <div class="st">{{ t.耗时 }}</div>
           </div>
         </div>
+        <div class="src-tip">⏱ 耗时来源：{{ trafficSource }}</div>
       </div>
 
       <!-- 行程概览：每天打卡点 -->
@@ -74,7 +75,14 @@
             <div class="day-title"><span class="dot" :style="{ background: dayDots[d % dayDots.length] }"></span>D{{ day.第几天 }}</div>
             <div class="day-items">
               <div v-for="(p, pidx) in (day.打卡点 || [])" :key="pidx" class="day-col">
-                <div class="ico-circle">{{ poiIcons[pidx % poiIcons.length] }}</div>
+                <div class="ico-circle" :style="{ background: iconOfDay(d, pidx).bg }">
+                  <span v-if="iconOfDay(d, pidx).kind === 'emoji'" class="ic-emoji">
+                    {{ iconOfDay(d, pidx).emoji }}
+                  </span>
+                  <span v-else class="ic-badge" :class="'sh-' + iconOfDay(d, pidx).shape">
+                    {{ iconOfDay(d, pidx).char }}
+                  </span>
+                </div>
                 <div class="col-name">{{ p.名称 }}</div>
                 <div class="col-time">{{ p.推荐时间 }}</div>
               </div>
@@ -120,6 +128,7 @@ import { useRouter } from "vue-router";
 import { api } from "../api/index.js";
 import { session } from "../session.js";
 import { resolveCityImageKeys } from "../assets/cityImages.js";
+import { assignIcons } from "../assets/poiIcon.js";
 
 const router = useRouter();
 const departure = ref("");
@@ -140,26 +149,42 @@ const planId = ref(null);
 const noInput = ref(false);
 
 const dayDots = ["#ff6b6b", "#34c77b", "#f5a623", "#e47fd0"];
-const poiIcons = ["🏮", "🏯", "🍜", "🎨", "🛍️", "🏛️", "⛰️", "🏝️"];
+
+// 每天行程的图标：按景点名称自动生成，且同一天内不重复
+const dayIcons = computed(() =>
+  (selectedRoute.value?.每日行程 || []).map((d) => assignIcons(d.打卡点 || []))
+);
+function iconOfDay(dayIdx, poiIdx) {
+  return dayIcons.value[dayIdx]?.[poiIdx] || { kind: "emoji", emoji: "📍", bg: "#f4f7fb" };
+}
 
 const fromImg = computed(() => fromImgs.value[0] || "");
 const toImg = computed(() => toImgs.value[0] || "");
 const selectedRoute = computed(() => routes.value[selectedIndex.value] || null);
 
-// 交通方式：从路线的全程交通读取（后端基于真实城市对耗时表生成）
+// 交通方式：从路线的全程交通读取（AI 实时查询优先，其次真实时刻表/距离估算）
 const transports = computed(() => {
   return selectedRoute.value?.全程交通 || [];
 });
+// 耗时来源：AI 实时查询 / 真实时刻表·距离估算
+const trafficSource = computed(
+  () => selectedRoute.value?.全程交通来源 || transports.value[0]?.来源 || "真实时刻表·距离估算"
+);
 
-// 目的地特色：取路线中的建筑/美食/地形
+// 目的地特色：取路线中的建筑/美食/地形，图标同样按名称自动生成（各地区一致）
 const destFeatures = computed(() => {
-  const feats = [];
-  const push = (name, ico) => feats.push({ name, ico });
-  toFeature.特色建筑?.[0] && push(toFeature.特色建筑[0], "🏛️");
-  toFeature.特色元素?.[0] && push(toFeature.特色元素[0], "🍜");
-  toFeature.地形?.[0] && push(toFeature.地形[0], "⛰️");
-  if (!feats.length) push(destination.value, "📍");
-  return feats.slice(0, 4);
+  const names = [
+    toFeature.特色建筑?.[0],
+    toFeature.特色元素?.[0],
+    toFeature.地形?.[0],
+  ].filter(Boolean);
+  if (!names.length) names.push(destination.value || "目的地");
+  const icons = assignIcons(names.map((n) => ({ 名称: n })));
+  return names.slice(0, 4).map((n, i) => ({
+    name: n,
+    ico: icons[i].kind === "emoji" ? icons[i].emoji : icons[i].char,
+    bg: icons[i].bg,
+  }));
 });
 
 // 费用估算（简单按天数）
@@ -284,3 +309,24 @@ function goHome() {
   });
 }
 </script>
+
+<style scoped>
+.src-tip {
+  margin-top: 8px; text-align: center; font-size: 11px; color: var(--text-light);
+}
+
+/* 自动生成的图标：语义 emoji 或 唯一徽章（首字 + 专属配色 + 专属形状） */
+.ic-emoji { font-size: 20px; line-height: 1; }
+.ic-badge {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; background: rgba(0, 0, 0, 0.22);
+}
+.sh-circle { border-radius: 50%; }
+.sh-square { border-radius: 4px; }
+.sh-hexagon { clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.sh-diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.sh-triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.sh-star { clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.sh-drop { clip-path: polygon(50% 0, 85% 45%, 85% 72%, 50% 100%, 15% 72%, 15% 45%); }
+.sh-wave { clip-path: polygon(0 30%, 25% 12%, 50% 30%, 75% 12%, 100% 30%, 100% 100%, 0 100%); }
+</style>

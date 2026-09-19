@@ -13,6 +13,7 @@ import poiRouter from "./routes/poi.js";
 import planRouter from "./routes/plan.js";
 import sessionRouter from "./routes/session.js";
 import cityRouter from "./routes/city.js";
+import geoRouter from "./routes/geo.js";
 import { init } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,7 @@ app.use("/api/poi", poiRouter);
 app.use("/api/plan", planRouter);
 app.use("/api/session", sessionRouter);
 app.use("/api/city", cityRouter);
+app.use("/api/geo", geoRouter);
 
 // 托管前端构建产物（web/dist）
 const distDir = path.join(__dirname, "../../web/dist");

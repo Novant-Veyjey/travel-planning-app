@@ -3,8 +3,8 @@
  * 调用 DeepSeek 大模型，根据输入+天气+POI 生成 3 条路线（对应 M2）
  */
 import "dotenv/config";
-import { getCityFeature } from "./cityFeature.js";
-import { getTransportOptions } from "./transport.js";
+import { getCityFeature, buildCityPoiPool } from "./cityFeature.js";
+import { getTransportOptions, planCityTraffic } from "./transport.js";
 
 const API_KEY = process.env.DEEPSEEK_API_KEY || "";
 const BASE_URL = process.env.AI_BASE_URL || "https://api.deepseek.com";
@@ -16,9 +16,13 @@ const MODEL = process.env.AI_MODEL || "deepseek-v4-flash";
  * @returns {Promise<Object>} { routes: [...] }
  */
 export async function generateRoutes(input) {
+  // 城际真实耗时：与路线生成并行发起（总耗时取两者较大值，不叠加）
+  const aiTimesPromise = queryTransportTimes(input.出发地, input.目的地);
+
   if (!API_KEY) {
-    // 无 Key 时返回模拟数据，保证框架可运行
-    return mockRoutes(input);
+    // 无 Key 时返回模拟数据，保证框架可运行（同样走真实距离校准，不再用固定公式）
+    const mocked = normalizeTraffic(mockRoutes(input), input.目的地);
+    return applyIntercityTransport(mocked, input.出发地, input.目的地, await aiTimesPromise);
   }
 
   const prompt = buildPrompt(input);
@@ -31,12 +35,52 @@ export async function generateRoutes(input) {
     );
     const data = parseRoutes(content);
     if (data.routes && data.routes.length > 0) {
-      return data;
+      normalizeTraffic(data, input.目的地);
+      return applyIntercityTransport(data, input.出发地, input.目的地, await aiTimesPromise);
     }
   } catch (e) {
     console.error("[AI] 生成失败，降级为模拟数据:", e.message);
   }
-  return mockRoutes(input);
+  const mocked = normalizeTraffic(mockRoutes(input), input.目的地);
+  return applyIntercityTransport(mocked, input.出发地, input.目的地, await aiTimesPromise);
+}
+
+/**
+ * 交通耗时真实化校准：
+ * 用著名景点真实经纬度计算每段实际路程，再套市内交通速度模型
+ * （步行 4.5km/h、骑行 13、公交 16+8min、地铁 35+14min 进出站、打车 28+5min）
+ * 重算耗时；AI/模板编造的方式若不适用或明显偏慢，按真实距离改推。
+ */
+function normalizeTraffic(data, city) {
+  const base = city || "目的地";
+  data.routes?.forEach((r) =>
+    r.每日行程?.forEach((day) => {
+      const pois = day.打卡点 || [];
+      pois.forEach((p, i) => {
+        if (!p.交通) p.交通 = {};
+        // 首站从市中心酒店出发（取城市中心坐标），其余从上一个打卡点出发
+        const from = i === 0 ? `${base}市中心酒店` : pois[i - 1].名称;
+        const plan = planCityTraffic(base, from, p.名称, p.交通.推荐方式);
+        if (!plan) {
+          // 该城市无坐标数据：至少保证字段可用，不做编造
+          if (!p.交通.推荐方式) p.交通.推荐方式 = "打车";
+          if (!p.交通.耗时) p.交通.耗时 = "约20分钟";
+          return;
+        }
+        const changed = plan.方式 !== p.交通.推荐方式;
+        p.交通.推荐方式 = plan.方式;
+        p.交通.耗时 = `约${plan.mins}分钟`;
+        p.交通.里程 = `${plan.km}公里`;
+        p.交通.推荐理由 = changed
+          ? `两地实际路程约${plan.km}公里，${plan.方式}最快，约${plan.mins}分钟`
+          : `${p.交通.推荐理由 || "便捷直达"}，全程约${plan.km}公里`;
+        if (!Array.isArray(p.交通.替代方式) || !p.交通.替代方式.length) {
+          p.交通.替代方式 = plan.替代方式;
+        }
+      });
+    })
+  );
+  return data;
 }
 
 /** 给 Promise 加超时（Promise.race 实现，兼容任意异步源） */
@@ -47,13 +91,20 @@ function withTimeout(promise, ms, message) {
   ]);
 }
 
-const AI_TIMEOUT_MS = 6000; // AI 请求超时，超时快速降级为模拟数据
+const AI_TIMEOUT_MS = 6000; // 路线生成超时，超时快速降级为模拟数据
+const AI_QUERY_TIMEOUT_MS = 8000; // 交通耗时查询超时，超时回落本地真实时刻表
 
-async function chat(prompt) {
+const ROUTE_SYSTEM =
+  "你是资深旅游规划师。根据用户输入生成3条游玩路线：休闲/经典/特种兵。只输出JSON，格式：" +
+  '{"routes":[{"路线名":"","适合人群":"","强度":"休闲|经典|特种兵","亮点":"",' +
+  '"每日行程":[{"第几天":1,"天气":"","地形":"","民族特色":{"民族":"","特色建筑":[],"民族元素":[]},' +
+  '"当地建筑":[],"打卡点":[{"名称":"","类型":"","推荐时间":"","交通":{"推荐方式":"","替代方式":[],"耗时":"","推荐理由":""},"注意事项":""}]}]}]}';
+
+async function chat(prompt, { system = ROUTE_SYSTEM, temperature = 0.8, timeoutMs = AI_TIMEOUT_MS, maxTokens = null } = {}) {
   const url = `${BASE_URL}/chat/completions`;
   // 用 Promise.race 强制超时，兼容各 Node 版本，避免 AI 接口挂起导致页面长时间卡 loading
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const doFetch = fetch(url, {
     method: "POST",
     headers: {
@@ -63,24 +114,19 @@ async function chat(prompt) {
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        {
-          role: "system",
-          content:
-            "你是资深旅游规划师。根据用户输入生成3条游玩路线：休闲/经典/特种兵。只输出JSON，格式：" +
-            '{"routes":[{"路线名":"","适合人群":"","强度":"休闲|经典|特种兵","亮点":"",' +
-            '"每日行程":[{"第几天":1,"天气":"","地形":"","民族特色":{"民族":"","特色建筑":[],"民族元素":[]},' +
-            '"当地建筑":[],"打卡点":[{"名称":"","类型":"","推荐时间":"","交通":{"推荐方式":"","替代方式":[],"耗时":"","推荐理由":""},"注意事项":""}]}]}]}',
-        },
+        { role: "system", content: system },
         { role: "user", content: prompt },
       ],
-      temperature: 0.8,
+      temperature,
       stream: false,
+      // 仅交通耗时这类结构化小查询才限制输出长度，加快响应
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
     }),
     signal: controller.signal,
   });
   // 超时后强制结束等待
   const timeoutPromise = new Promise((_, rej) =>
-    setTimeout(() => rej(new Error("AI请求超时")), AI_TIMEOUT_MS)
+    setTimeout(() => rej(new Error("AI请求超时")), timeoutMs)
   );
   const resp = await Promise.race([doFetch, timeoutPromise]).catch((e) => {
     clearTimeout(timer);
@@ -92,6 +138,62 @@ async function chat(prompt) {
   }
   const data = await resp.json();
   return data.choices[0].message.content;
+}
+
+/* ============ 城际交通真实耗时：接入 AI 查询，失败回落本地时刻表 ============ */
+const transportCache = new Map(); // 同城对复用，避免每次生成都消耗一次 AI 请求
+
+async function queryTransportTimes(from, to) {
+  if (!API_KEY || !from || !to || from === to) return null;
+  const key = `${from}-${to}`;
+  if (transportCache.has(key)) return transportCache.get(key);
+
+  const prompt =
+    `请给出从【${from}】到【${to}】的实际出行耗时（含进出站/候机/机场往返等真实开销）。\n` +
+    `只输出JSON，单位为小时的数字，没有或不推荐的交通方式填 null：\n` +
+    `{"高铁":1.5,"飞机":null,"自驾":3.5}`;
+  const system =
+    "你是交通信息助手，只依据真实的高铁/航班/公路里程与运行时长作答，不要编造。只输出JSON。";
+
+  let result = null;
+  try {
+    const content = await withTimeout(
+      chat(prompt, { system, temperature: 0, timeoutMs: AI_QUERY_TIMEOUT_MS, maxTokens: 300 }),
+      AI_QUERY_TIMEOUT_MS + 500,
+      "交通耗时查询超时"
+    );
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}") + 1;
+    if (start >= 0 && end > start) {
+      const obj = JSON.parse(content.slice(start, end));
+      const picked = {};
+      for (const mode of ["高铁", "飞机", "自驾"]) {
+        const v = obj?.[mode];
+        picked[mode] =
+          typeof v === "number" && isFinite(v) && v > 0 && v <= 30 ? Math.round(v * 10) / 10 : null;
+      }
+      if (Object.values(picked).some((v) => v !== null)) {
+        result = picked;
+      } else {
+        console.warn("[AI] 交通耗时返回无可用量，回落本地时刻表");
+      }
+    } else {
+      console.warn("[AI] 交通耗时返回非JSON，回落本地时刻表");
+    }
+  } catch (e) {
+    console.error("[AI] 交通耗时查询失败，回落本地时刻表:", e.message);
+  }
+  // 只缓存成功结果：失败（超时/解析不出）下次仍可重试
+  if (result) transportCache.set(key, result);
+  return result;
+}
+
+// 用 AI 实时耗时（或本地真实时刻表）重建每条路线的城际交通方案
+function applyIntercityTransport(data, from, to, aiTimes) {
+  const options = getTransportOptions(from, to, aiTimes);
+  const 来源 = options[0]?.来源 || "真实时刻表·距离估算";
+  data.routes = (data.routes || []).map((r) => ({ ...r, 全程交通: options, 全程交通来源: 来源 }));
+  return data;
 }
 
 function buildPrompt(input) {
@@ -130,21 +232,8 @@ function mockRoutes(input) {
     "夜游": "🌙",
   };
 
-  // 构造不重复的景点池（优先用真实特色，不足用派生景点补齐）
-  const pool = [];
-  const seen = new Set();
-  const pushPoi = (name, type) => {
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    pool.push({ name, type });
-  };
-  建筑.forEach((n) => pushPoi(n, "标志性景点"));
-  地形.forEach((n) => pushPoi(n, "自然风光"));
-  元素.forEach((n) => pushPoi(n, "美食打卡"));
-  // 派生景点（保证天数多时也能凑够且不重复）
-  ["人文博物馆", "老街", "夜市", "古城墙", "滨江公园", "艺术街区", "主题公园"].forEach((s, i) =>
-    pushPoi(`${base}·${s}`, ["人文历史", "休闲街区", "夜游", "人文历史", "自然风光", "休闲街区", "标志性景点"][i])
-  );
+  // 不重复的景点池：与 POI 接口共用同一份生成逻辑（当地建筑/地形/特色）
+  const pool = buildCityPoiPool(base).map((p) => ({ name: p.名称, type: p.类型 }));
 
   // 每条路线根据强度生成不同的日程（观景点/节奏/强度都不同）
   const STYLE_CONF = {
@@ -193,10 +282,11 @@ function mockRoutes(input) {
           名称: p.name,
           类型: p.type,
           推荐时间: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}-${String(hh + 2).padStart(2, "0")}:00`,
+          // 交通字段留空，由 normalizeTraffic 按真实景点坐标+速度模型填充
           交通: {
-            推荐方式: k === 0 ? "地铁" : "打车",
-            替代方式: ["公交", "步行"],
-            耗时: `${15 + k * 10}min`,
+            推荐方式: "",
+            替代方式: [],
+            耗时: "",
             推荐理由: "避开高峰，直达便捷",
           },
           注意事项: strength === "特种兵" ? "需预留排队时间" : "建议提前线上预约",
