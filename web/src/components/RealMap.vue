@@ -258,20 +258,9 @@ const isRain = computed(() => scene.value === "rainy" || (props.weather?.雨滴 
 const isSnow = computed(() => scene.value === "snowy" || (props.weather?.雪花 || 0) > 0);
 const isSun = computed(() => !isRain.value && !isSnow.value);
 
-/* ============ 夜晚模式：19:00–06:00 切深色底图 + 星空（下雨再叠雨点） ============ */
-const NIGHT_FROM = 19; // 19:00 入夜
-const NIGHT_TO = 6; // 次日 06:00 天亮
-const nightNow = ref(Date.now());
-let nightTimer = null;
-
-const isNight = computed(() => {
-  // 支持 ?night=1 / ?night=0 手动预览；默认按本机当地时间判断
-  const forced = new URLSearchParams(location.search).get("night");
-  if (forced === "1") return true;
-  if (forced === "0") return false;
-  const h = new Date(nightNow.value).getHours();
-  return h >= NIGHT_FROM || h < NIGHT_TO;
-});
+/* ============ 夜晚模式：默认始终白天，不再按当地时间自动入夜 ============
+ * 需要看夜景时显式加 ?night=1（深色底图 + 星空 + 月亮），其它情况一律白天。 */
+const isNight = computed(() => new URLSearchParams(location.search).get("night") === "1");
 
 // 星空：位置由城市名派生的稳定伪随机数生成（同一城市星图一致），
 // 用百分比固定在"天上"那一层，平移缩放地图时星点不会跟着滑动。
@@ -936,13 +925,9 @@ onMounted(() => {
     syncMe();
   }
   window.addEventListener("resize", measure);
-  // 每分钟校准一次，跨过 19:00 / 06:00 时自动切昼夜
-  nightTimer = setInterval(() => (nightNow.value = Date.now()), 60000);
 });
 onUnmounted(() => {
   window.removeEventListener("resize", measure);
-  if (nightTimer) clearInterval(nightTimer);
-  nightTimer = null;
   // 清掉所有动画帧，避免离开页面后仍在跑
   if (dragRaf) cancelAnimationFrame(dragRaf);
   if (zoomRaf) cancelAnimationFrame(zoomRaf);
