@@ -20,7 +20,17 @@
       <polyline v-for="(r, i) in roads" :key="'rd'+i" :points="polyPoints(r.坐标)"
                 :class="r.类型 === '环线' ? 'road road-ring' : 'road'" />
 
-      <!-- 行程路线不画连线：用序号气泡 + 状态配色 + "下一站"角标表示顺序 -->
+      <!-- 只画一段虚线：当前位置 → 下一个要去的地方 -->
+      <template v-if="guideTarget">
+        <defs>
+          <marker id="rm-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#ff8b00" />
+          </marker>
+        </defs>
+        <line v-if="me" :x1="me.x" :y1="me.y" :x2="guideTarget.x" :y2="guideTarget.y"
+              class="guide-line" marker-end="url(#rm-arrow)" />
+      </template>
+      <!-- 其余打卡点之间不画连线，用序号气泡 + 状态配色 + "下一站"角标表示顺序 -->
 
       <!-- 3D 立体建筑：地面阴影 + 正面 + 侧面 + 顶面 -->
       <g v-for="(b, i) in visibleBuildings" :key="'b'+i">
@@ -293,6 +303,18 @@ function iconOf(name) {
   return props.icons[name] || localIcons.value[name] || "📍";
 }
 
+// 只连到"下一个要去的地方"（按名称匹配，避免坐标缺失时下标错位）
+const guideTarget = computed(() => {
+  const list = pinList.value;
+  if (!list.length) return null;
+  const nextName = props.pins[props.nextIndex]?.名称;
+  if (nextName) {
+    const hit = list.find((p) => p.名称 === nextName);
+    if (hit) return hit;
+  }
+  return list.find((p) => p.状态 !== "done") || null;
+});
+
 // 真实地形标注：按真实坐标投影，并在旁边点缀当地植被卡通图标
 const terrainList = computed(() =>
   props.terrains
@@ -537,6 +559,8 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 .mark-cur .mark-name { fill: #b06a00; font-weight: 600; }
 .mark-next { font-size: 9px; fill: #ff8b00; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 2.5px; font-weight: 600; }
 .mark-shadow { fill: rgba(45, 66, 32, 0.22); }
+/* 只画当前位置→下一站的这一条虚线 */
+.guide-line { stroke: #ff8b00; stroke-width: 3; stroke-dasharray: 7 5; opacity: 0.95; }
 .nearby-dot { fill: #ff7a45; stroke: #fff; stroke-width: 1; opacity: 0.9; }
 
 /* 真实地形卡通标注 */
