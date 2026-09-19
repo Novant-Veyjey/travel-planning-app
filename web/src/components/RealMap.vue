@@ -20,8 +20,7 @@
       <polyline v-for="(r, i) in roads" :key="'rd'+i" :points="polyPoints(r.坐标)"
                 :class="r.类型 === '环线' ? 'road road-ring' : 'road'" />
 
-      <!-- 行程路线：按打卡点真实坐标串联 -->
-      <polyline v-if="routePoints" :points="routePoints" class="route" />
+      <!-- 行程路线不画连线：用序号气泡 + 状态配色 + "下一站"角标表示顺序 -->
 
       <!-- 3D 立体建筑：地面阴影 + 正面 + 侧面 + 顶面 -->
       <g v-for="(b, i) in visibleBuildings" :key="'b'+i">
@@ -34,15 +33,6 @@
         <text :x="b.x" :y="b.y - b.h * 0.42" class="b-ico">{{ b.ico }}</text>
         <text v-if="b.显示名称" :x="b.x" :y="b.y + 13" class="b-label">{{ b.名称 }}</text>
       </g>
-
-      <!-- 导航指引线：从当前位置指向下一站 -->
-      <line v-if="guideLine" :x1="me.x" :y1="me.y" :x2="nextPin.x" :y2="nextPin.y"
-            class="guide-line" marker-end="url(#rm-arrow)" />
-      <defs>
-        <marker id="rm-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="#ff8b00" />
-        </marker>
-      </defs>
 
       <!-- 行程打卡点：每个地点用与其名称对应的卡通图标标注 -->
       <g v-for="(p, i) in pinList" :key="'p'+i" :class="'mark mark-' + p.状态">
@@ -76,23 +66,13 @@
         <text :x="t.x" :y="t.y - 18" class="terrain-text">{{ t.ico }} {{ t.名称 }}</text>
       </g>
 
-      <!-- 我的立体卡通形象：站在真实 GPS 坐标上（明暗两面 + 落地阴影） -->
-      <g v-if="me" class="avatar-3d">
-        <ellipse :cx="me.x" :cy="me.y" rx="12" ry="4.5" class="me-shadow" />
-        <circle :cx="me.x" :cy="me.y - 16" r="19" class="me-pulse" />
-        <!-- 腿 -->
-        <rect :x="me.x - 6.5" :y="me.y - 12" width="5" height="12" rx="2.4" class="av-leg" />
-        <rect :x="me.x + 1.5" :y="me.y - 12" width="5" height="12" rx="2.4" class="av-leg" />
-        <!-- 身体：亮面 + 暗面做出立体感 -->
-        <path :d="`M${me.x - 9},${me.y - 12} L${me.x - 9},${me.y - 25} Q${me.x},${me.y - 30} ${me.x + 9},${me.y - 25} L${me.x + 9},${me.y - 12} Z`" class="av-body" />
-        <path :d="`M${me.x + 1.5},${me.y - 12} L${me.x + 1.5},${me.y - 27.5} Q${me.x + 5.5},${me.y - 29} ${me.x + 9},${me.y - 25} L${me.x + 9},${me.y - 12} Z`" class="av-body-dark" />
-        <!-- 头 -->
-        <circle :cx="me.x" :cy="me.y - 35" r="8.5" class="av-head" />
-        <path :d="`M${me.x + 1},${me.y - 43.5} A8.5,8.5 0 0 1 ${me.x + 8.5},${me.y - 35} L${me.x + 1},${me.y - 35} Z`" class="av-head-dark" />
-        <circle :cx="me.x - 3" :cy="me.y - 36" r="1.2" class="av-eye" />
-        <circle :cx="me.x + 2.6" :cy="me.y - 36" r="1.2" class="av-eye" />
+      <!-- 我的卡通形象：站在真实 GPS 坐标上（emoji 人偶 + 接地阴影 + 朝向） -->
+      <g v-if="me" class="avatar-me">
+        <ellipse :cx="me.x" :cy="me.y" rx="11" ry="4" class="me-shadow" />
+        <circle :cx="me.x" :cy="me.y - 10" r="18" class="me-pulse" />
+        <text :x="me.x" :y="me.y - 2" class="me-char">{{ avatar }}</text>
         <polygon v-if="heading !== null" :points="headingPath" class="me-head" />
-        <text :x="me.x" :y="me.y + 14" class="me-tag">当前位置</text>
+        <text :x="me.x" :y="me.y - 34" class="me-tag">当前位置</text>
       </g>
     </svg>
 
@@ -325,13 +305,7 @@ const terrainList = computed(() =>
     .filter((t) => t.x > -50 && t.x < size.w + 50 && t.y > -40 && t.y < size.h + 40)
 );
 
-// 下一站（画指引线用）
-const nextPin = computed(() => {
-  const i = props.nextIndex;
-  if (i >= 0 && pinList.value[i]) return pinList.value[i];
-  return pinList.value.find((p) => p.状态 !== "done") || pinList.value[0] || null;
-});
-const guideLine = computed(() => !!me.value && !!nextPin.value);
+
 
 const headingPath = computed(() => {
   if (!me.value || heading.value === null) return "";
@@ -377,12 +351,37 @@ function zoomForKm(km) {
   return z;
 }
 function fitView(apply = false) {
+  // 只展示"本次规划"的打卡点范围；打卡点还没坐标时才退回城市要素
+  let pinPts = props.pins
+    .filter((p) => p.纬度 != null && p.经度 != null)
+    .map((p) => [p.纬度, p.经度]);
+  // 远途一日游（如庐山、鄱阳湖，动辄上百公里）不参与框选，否则小地图会被拉到几十公里外
+  if (pinPts.length >= 2) {
+    const keep = [pinPts[0]];
+    let cLat = pinPts[0][0];
+    let cLon = pinPts[0][1];
+    for (let i = 1; i < pinPts.length; i++) {
+      const km = Math.hypot(
+        (pinPts[i][0] - cLat) * 111.32,
+        (pinPts[i][1] - cLon) * 111.32 * Math.cos((cLat * Math.PI) / 180)
+      );
+      if (km <= 8) {
+        keep.push(pinPts[i]);
+        cLat = keep.reduce((s, p) => s + p[0], 0) / keep.length;
+        cLon = keep.reduce((s, p) => s + p[1], 0) / keep.length;
+      }
+    }
+    pinPts = keep;
+  }
+  const usePins = pinPts.length >= 2;
   const anchor = geo.中心 || [center.lat, center.lon];
-  const pts = allFeaturePoints().filter(([la, lo]) => {
-    const dLat = (la - anchor[0]) * 111.32;
-    const dLon = (lo - anchor[1]) * 111.32 * Math.cos((la * Math.PI) / 180);
-    return Math.hypot(dLat, dLon) <= 4.5;
-  });
+  const pts = usePins
+    ? pinPts
+    : allFeaturePoints().filter(([la, lo]) => {
+        const dLat = (la - anchor[0]) * 111.32;
+        const dLon = (lo - anchor[1]) * 111.32 * Math.cos((la * Math.PI) / 180);
+        return Math.hypot(dLat, dLon) <= 4.5;
+      });
   if (!pts.length) return;
   const lats = pts.map((p) => p[0]);
   const lons = pts.map((p) => p[1]);
@@ -395,8 +394,10 @@ function fitView(apply = false) {
     const h = Math.max(...xy.map((p) => p.y)) - Math.min(...xy.map((p) => p.y));
     if (w <= size.w * 0.82 && h <= size.h * 0.82) break;
   }
-  // 步行视角：画面宽度钳制在 1.2km ~ 3.2km（既不空旷，也不会贴到单栋楼上）
-  zoom.value = Math.min(zoomForKm(1.2), Math.max(zoom.value, zoomForKm(3.2)));
+  // 只限制"贴得过近"：视野不小于 near 公里（规划范围 600m / 城市要素 1.2km），
+  // 其余交给上面的自适应——打卡点跨度大时自然放宽，保证规划的点都在画面内
+  const near = usePins ? 0.6 : 1.2;
+  zoom.value = Math.min(zoom.value, zoomForKm(near));
   if (apply) syncMe();
 }
 
@@ -482,7 +483,11 @@ watch(() => [props.user?.lat, props.user?.lon], () => {
   }
   refreshNearby();
 });
-watch(() => props.pins.length, () => fitView());
+// 打卡点变化（换天/换城市）时自动重新框选规划范围
+watch(
+  () => props.pins.map((p) => `${p.名称}|${p.纬度}`).join(","),
+  () => fitView(true)
+);
 
 onMounted(() => {
   measure();
@@ -516,8 +521,6 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 .road { fill: none; stroke: #c9d2c2; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .road-ring { stroke: #d8c8a8; }
 
-.route { fill: none; stroke: #ff8b00; stroke-width: 3.5; stroke-dasharray: 9 7; stroke-linecap: round; opacity: 0.95; }
-
 /* 3D 立体建筑 */
 .b-shadow { fill: rgba(45, 66, 32, 0.18); }
 .b-front { fill: #8fb8e8; stroke: #6f97c9; stroke-width: 0.5; }
@@ -534,7 +537,6 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 .mark-cur .mark-name { fill: #b06a00; font-weight: 600; }
 .mark-next { font-size: 9px; fill: #ff8b00; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 2.5px; font-weight: 600; }
 .mark-shadow { fill: rgba(45, 66, 32, 0.22); }
-.guide-line { stroke: #ff8b00; stroke-width: 3; stroke-dasharray: 7 5; opacity: 0.95; }
 .nearby-dot { fill: #ff7a45; stroke: #fff; stroke-width: 1; opacity: 0.9; }
 
 /* 真实地形卡通标注 */
@@ -578,13 +580,8 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
   background: rgba(255, 255, 255, 0.85); padding: 1px 6px; border-radius: 10px;
 }
 
-/* GPS 当前位置：立体卡通形象 */
-.av-head { fill: #ffd7a8; stroke: #e5b483; stroke-width: 0.6; }
-.av-head-dark { fill: rgba(0, 0, 0, 0.08); }
-.av-eye { fill: #3c3c3c; }
-.av-body { fill: #ff8b6a; stroke: #e0734f; stroke-width: 0.6; }
-.av-body-dark { fill: rgba(0, 0, 0, 0.14); }
-.av-leg { fill: #4a6fa5; }
+/* GPS 当前位置：卡通人物（emoji 形象） */
+.me-char { font-size: 26px; text-anchor: middle; }
 .me-tag { font-size: 9.5px; fill: #2f6fd0; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 .me-shadow { fill: rgba(45, 66, 32, 0.3); }
 .me-pulse { fill: rgba(47, 111, 208, 0.16); animation: pulse 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }

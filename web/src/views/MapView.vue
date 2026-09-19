@@ -620,8 +620,8 @@ function exitToHome() {
   font-size: 11px; padding: 5px 10px; border-radius: 10px; cursor: pointer;
 }
 
-/* 地图容器 */
-.real-wrap { height: 420px; margin: 8px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+/* 地图容器：只作行程概览，高度收小，主体让给下方行程面板 */
+.real-wrap { height: 250px; margin: 8px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
 .real-wrap .real-map { flex: 1; min-height: 0; }
 .nearby-strip { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .nb-title { font-size: 11px; color: var(--text-light); flex: none; }
