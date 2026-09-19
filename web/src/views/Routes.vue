@@ -56,7 +56,7 @@
       <!-- 交通方式 -->
       <div class="card">
         <h3>交通方式</h3>
-        <div class="transport-row">
+        <div v-if="transports.length" class="transport-row">
           <div v-for="(t, i) in transports" :key="i" class="transport-item" :class="{ recommend: i === 0 }">
             <div v-if="i === 0" class="recommend-badge">推荐</div>
             <div class="ico">{{ t.ico }}</div>
@@ -64,7 +64,11 @@
             <div class="st">{{ t.耗时 }}</div>
           </div>
         </div>
-        <div class="src-tip">⏱ 耗时来源：{{ trafficSource }}</div>
+        <!-- 该城市对没有真实时刻表、AI 也未返回结果时不编造耗时 -->
+        <div v-else class="transport-empty">
+          暂无该线路的可靠耗时数据，建议按实际班次安排（可返回首页重新生成）
+        </div>
+        <div v-if="transports.length" class="src-tip">⏱ 耗时来源：{{ trafficSource }}</div>
       </div>
 
       <!-- 行程概览：每天打卡点 -->
@@ -313,6 +317,10 @@ function goHome() {
 <style scoped>
 .src-tip {
   margin-top: 8px; text-align: center; font-size: 11px; color: var(--text-light);
+}
+.transport-empty {
+  margin-top: 10px; padding: 14px 12px; text-align: center; font-size: 12px;
+  color: var(--text-light); background: #f7f9fc; border-radius: 12px; line-height: 1.6;
 }
 
 /* 自动生成的图标：语义 emoji 或 唯一徽章（首字 + 专属配色 + 专属形状） */

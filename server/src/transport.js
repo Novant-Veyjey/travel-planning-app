@@ -240,6 +240,8 @@ const CITY_ALIAS = {
   福建: '福州', 海南: '海口', 黑龙江: '哈尔滨', 湖南: '长沙', 湖北: '武汉',
   浙江: '杭州', 江苏: '南京', 陕西: '西安', 广东: '广州', 广西: '桂林', 河南: '郑州',
   甘肃: '兰州', 青海: '西宁', 吉林: '长春', 辽宁: '沈阳', 山东: '济南', 山西: '太原',
+  安徽: '合肥', 河北: '石家庄', 新疆: '乌鲁木齐', 内蒙古: '呼和浩特', 宁夏: '银川',
+  台湾: '台北', 香港: '香港', 澳门: '澳门',
 };
 
 /** 城市名归一化：精确城市 → 去省市后缀 → 省级别名映射 */
@@ -350,8 +352,47 @@ function recommendCityMode(city, poiA, poiB) {
   return plan ? plan.方式 : null;
 }
 
+/**
+ * 由景点坐标反推的城市中心（取中位数，抵抗远离市区的景区干扰）
+ * 覆盖 CITY_COORDS 未收录、但景点坐标库有数据的城市（乐山、上饶/婺源、景德镇、大理…）
+ */
+const POI_CITY_CENTERS = (() => {
+  const grouped = {};
+  for (const key of Object.keys(POI_COORDS)) {
+    const [city, name] = key.split('|');
+    if (!city || !name) continue;
+    (grouped[city] = grouped[city] || []).push(POI_COORDS[key]);
+  }
+  const median = (arr) => {
+    const s = [...arr].sort((x, y) => x - y);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const out = {};
+  for (const [city, list] of Object.entries(grouped)) {
+    out[city] = [
+      +median(list.map((p) => p[0])).toFixed(3),
+      +median(list.map((p) => p[1])).toFixed(3),
+    ];
+  }
+  return out;
+})();
+
+// 取城市坐标：城市表 → 归一化名 → 景点库反推的城市中心 → 同名景点坐标；都取不到返回 null（不编造）
 function getCoord(city) {
-  return CITY_COORDS[city] || null;
+  if (!city) return null;
+  const raw = String(city).trim();
+  const c = resolveCity(raw);
+  return (
+    CITY_COORDS[c] ||
+    CITY_COORDS[raw] ||
+    POI_CITY_CENTERS[c] ||
+    POI_CITY_CENTERS[raw] ||
+    // 县级目的地（婺源、三清山…）在景点库里有坐标，直接沿用
+    POI_INDEX[c] ||
+    POI_INDEX[raw] ||
+    null
+  );
 }
 
 function haversine([lat1, lon1], [lat2, lon2]) {
@@ -365,32 +406,35 @@ function haversine([lat1, lon1], [lat2, lon2]) {
   return R * c;
 }
 
-// 根据直线距离估算耗时（公里）
+/**
+ * 按直线距离估算城际耗时（公里）——仅在真实时刻表未覆盖该城市对时使用
+ * 高铁：铁路绕行系数 1.2、旅速 250km/h，另加候车/接驳 0.4h
+ * 自驾：公路绕行系数 1.25、综合旅速 95km/h（已含服务区休息）
+ * 飞机：500km 以上才有意义，固定开销 2h（值机安检 + 机场往返）+ 700km/h 巡航
+ */
 function estimateByDistance(distanceKm) {
-  // 高铁：平均旅速约 220 km/h（含停站）；自驾：约 90 km/h；飞机：飞行+机场往返
-  const 高铁 = Math.max(0.8, +(distanceKm / 220 * 1.15).toFixed(1)); // 1.15 为停站系数
-  const 自驾 = Math.max(1.0, +(distanceKm / 90).toFixed(1));
-  let 飞机 = null;
-  if (distanceKm > 500) {
-    飞机 = +(1.5 + distanceKm / 800).toFixed(1);
-  }
+  const 高铁 = Math.max(0.8, +((distanceKm * 1.2) / 250 + 0.4).toFixed(1));
+  const 自驾 = Math.max(1.0, +((distanceKm * 1.25) / 95).toFixed(1));
+  const 飞机 = distanceKm > 500 ? +(2 + distanceKm / 700).toFixed(1) : null;
   return { 高铁, 飞机, 自驾 };
 }
 
+/**
+ * 城际耗时：① 真实城市对时刻表 → ② 经纬度距离估算 → ③ 都取不到返回 null
+ * 注意：不再返回固定值兜底（那会让任意城市对都显示 2.5/4/10 小时）
+ */
 function getTransportTimes(from, to) {
-  const key = `${from}-${to}`;
-  if (TRANSPORT_TABLE[key]) return TRANSPORT_TABLE[key];
+  const a = resolveCity(from);
+  const b = resolveCity(to);
+  // 表里既有"南昌-上海"这种标准写法，也兼容用户输入的省市后缀
+  const hit = TRANSPORT_TABLE[`${a}-${b}`] || TRANSPORT_TABLE[`${from}-${to}`];
+  if (hit) return hit;
 
-  // 未命中：用经纬度距离估算
   const c1 = getCoord(from);
   const c2 = getCoord(to);
-  if (c1 && c2) {
-    const d = haversine(c1, c2);
-    return estimateByDistance(d);
-  }
+  if (c1 && c2) return estimateByDistance(haversine(c1, c2));
 
-  // 连坐标都没有的兜底：给一个偏保守的估算
-  return { 高铁: 4.0, 飞机: 2.5, 自驾: 10.0 };
+  return null;
 }
 
 const INTERCITY_MODES = ['高铁', '飞机', '自驾'];
@@ -402,7 +446,9 @@ const INTERCITY_MODES = ['高铁', '飞机', '自驾'];
  * @param {Object|null} aiTimes AI 实时查询到的各方式耗时（小时），优先采用
  */
 function getTransportOptions(from, to, aiTimes) {
-  const times = { ...getTransportTimes(from, to) };
+  const base = getTransportTimes(from, to);
+  // 本地无该城市对数据时留空，等 AI 实时查询补；仍拿不到就不展示（不编造耗时）
+  const times = { ...(base || { 高铁: null, 飞机: null, 自驾: null }) };
 
   // AI 实时耗时优先：只有在拿到至少一个有效值后才信任其 null（表示确无该方式）
   let aiHits = 0;
@@ -420,7 +466,7 @@ function getTransportOptions(from, to, aiTimes) {
       }
     }
   }
-  const 来源 = aiHits > 0 ? 'AI实时查询' : '真实时刻表·距离估算';
+  const 来源 = aiHits > 0 ? 'AI实时查询' : base ? '真实时刻表·距离估算' : '暂无可靠数据';
 
   const icoMap = { 高铁: '🚄', 飞机: '✈️', 自驾: '🚗' };
   // 不足 1 小时用分钟表达，更接近真实体感
