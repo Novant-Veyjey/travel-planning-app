@@ -76,13 +76,13 @@
         <text :x="t.x" :y="t.y - 18" class="terrain-text">{{ t.ico }} {{ t.名称 }}</text>
       </g>
 
-      <!-- 我的卡通形象：站在真实 GPS 坐标上（emoji 人偶 + 接地阴影 + 朝向） -->
+      <!-- 我的人物建模：站在真实 GPS 坐标上，服饰随当地民族传统服饰变化 -->
       <g v-if="me" class="avatar-me">
-        <ellipse :cx="me.x" :cy="me.y" rx="11" ry="4" class="me-shadow" />
-        <circle :cx="me.x" :cy="me.y - 10" r="18" class="me-pulse" />
-        <text :x="me.x" :y="me.y - 2" class="me-char">{{ avatar }}</text>
-        <polygon v-if="heading !== null" :points="headingPath" class="me-head" />
-        <text :x="me.x" :y="me.y - 34" class="me-tag">当前位置</text>
+        <circle :cx="me.x" :cy="me.y - 8" r="16" class="me-pulse" />
+        <!-- 朝向锥：贴地指向当前行进方向（画在人偶脚下） -->
+        <polygon v-if="heading !== null" :points="headingPath" class="me-cone" />
+        <FigureAvatar :x="me.x" :y="me.y" :scale="0.98" :costume="costume" />
+        <text :x="me.x" :y="me.y + 14" class="me-tag">📍 我的位置 · {{ costume.服饰 }}</text>
       </g>
     </svg>
 
@@ -112,6 +112,10 @@
     </div>
 
     <div class="gps-chip">🛰 {{ gpsText }}</div>
+    <!-- 当前人物服饰：随当地民族传统服饰变化 -->
+    <div class="costume-chip" :title="`${costume.民族}传统服饰`">
+      🪡 {{ costume.服饰 }}<em>{{ costume.民族 }}</em>
+    </div>
   </div>
 </template>
 
@@ -119,6 +123,8 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
 import { api } from "../api/index.js";
 import { assignIcons } from "../assets/poiIcon.js";
+import FigureAvatar from "./FigureAvatar.vue";
+import { DEFAULT_COSTUME } from "../assets/ethnicCostume.js";
 
 const props = defineProps({
   city: { type: String, default: "" },
@@ -128,7 +134,7 @@ const props = defineProps({
   nextIndex: { type: Number, default: -1 }, // 下一站下标（画指引线）
   terrains: { type: Array, default: () => [] }, // 真实地形标注 [{名称, 纬度, 经度, ico}]
   flora: { type: Array, default: () => [] }, // 目的地植被卡通图标
-  avatar: { type: String, default: "🧍‍♀️" }, // 当前位置的卡通形象
+  costume: { type: Object, default: () => ({}) }, // 当地民族传统服饰（人物建模换装）
   weather: { type: Object, default: () => ({}) }, // 当地天气场景（雨/雪/晴）
   temp: { type: [Number, String], default: "" }, // 当地温度
   gpsState: { type: String, default: "idle" },
@@ -329,16 +335,20 @@ const terrainList = computed(() =>
 
 
 
+// 当前服饰（兜底：汉族交领汉服），人物建模据此换装
+const costume = computed(() => ({ ...DEFAULT_COSTUME, ...props.costume }));
+
+// 朝向锥：以人偶脚下为顶点、朝行进方向张开的半透明扇形（地图式方位指示）
 const headingPath = computed(() => {
   if (!me.value || heading.value === null) return "";
-  const a = ((heading.value - 90) * Math.PI) / 180;
-  const x = me.value.x;
-  const y = me.value.y - 14;
-  const s = 6;
+  const a = ((heading.value - 90) * Math.PI) / 180; // 0° 指向北
+  const { x, y } = me.value;
+  const r = 20; // 锥长
+  const w = 0.5; // 半张角
   return [
-    `${x + Math.cos(a) * s},${y + Math.sin(a) * s}`,
-    `${x + Math.cos(a + 2.5) * s},${y + Math.sin(a + 2.5) * s}`,
-    `${x + Math.cos(a - 2.5) * s},${y + Math.sin(a - 2.5) * s}`,
+    `${x + Math.cos(a) * r},${y + Math.sin(a) * r}`,
+    `${x + Math.cos(a + w) * r * 0.3},${y + Math.sin(a + w) * r * 0.3}`,
+    `${x + Math.cos(a - w) * r * 0.3},${y + Math.sin(a - w) * r * 0.3}`,
   ].join(" ");
 });
 
@@ -604,12 +614,10 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
   background: rgba(255, 255, 255, 0.85); padding: 1px 6px; border-radius: 10px;
 }
 
-/* GPS 当前位置：卡通人物（emoji 形象） */
-.me-char { font-size: 26px; text-anchor: middle; }
+/* GPS 当前位置：人物建模（正面卡通人偶，服饰随当地民族变化） */
 .me-tag { font-size: 9.5px; fill: #2f6fd0; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-.me-shadow { fill: rgba(45, 66, 32, 0.3); }
 .me-pulse { fill: rgba(47, 111, 208, 0.16); animation: pulse 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
-.me-head { fill: #2f6fd0; }
+.me-cone { fill: rgba(47, 111, 208, 0.35); }
 @keyframes pulse { 0% { opacity: 0.9; transform: scale(0.6); } 100% { opacity: 0; transform: scale(1.6); } }
 
 .scale-bar {
@@ -629,4 +637,12 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
   background: rgba(255, 255, 255, 0.92); padding: 3px 8px; border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
+/* 当前人物服饰（当地民族传统服饰） */
+.costume-chip {
+  position: absolute; left: 10px; top: 36px; font-size: 11px; color: #8a4a86;
+  background: rgba(255, 255, 255, 0.92); padding: 3px 8px; border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  display: flex; align-items: center; gap: 4px;
+}
+.costume-chip em { font-style: normal; font-size: 10px; color: #b0a3c4; }
 </style>

@@ -34,9 +34,11 @@
 
     <!-- 唯一地图：真实经纬度底图（卡通渲染）+ 立体建筑/山峰 + 我的立体形象 + 路线 -->
     <div v-if="!noInput" class="real-wrap">
-      <RealMap :city="cityName || destination" :user="gps" :pins="realPins"
+      <RealMap ref="realMapRef"
+               :city="cityName || destination" :user="gps" :pins="realPins"
                :icons="poiIcons" :next-index="nextIndex" :terrains="terrainLabels"
                :flora="floraIcons" :weather="scenario" :temp="weather.温度"
+               :costume="costume"
                :gps-state="gpsState" @nearby="nearbyList = $event" />
       <!-- 移动中实时推荐周边景点（按真实距离排序） -->
       <div v-if="nearbyList.length" class="nearby-strip">
@@ -50,6 +52,7 @@
     <!-- 当地民族特色 / 建筑（区域元数据驱动） -->
     <div v-if="!noInput && regionMeta.民族" class="ethnic-strip">
       <span class="et-main">🧑‍🤝‍🧑 {{ regionMeta.民族 }}</span>
+      <span class="et-tag et-costume" :title="'人物建模已换上当地传统服饰'">🪡 {{ costume.服饰 }}</span>
       <span class="et-tag" v-for="b in regionMeta.建筑类型" :key="'b' + b">🏠 {{ b }}</span>
       <span class="et-tag et-elem" v-for="e in regionMeta.民族元素" :key="'e' + e">✦ {{ e }}</span>
     </div>
@@ -114,6 +117,9 @@
           <div v-if="regionMeta.民族" class="fr-meta">
             🧑‍🤝‍🧑 民族特色：{{ regionMeta.民族 }} · {{ regionMeta.建筑类型.join("、") }} · {{ regionMeta.民族元素.join("、") }}
           </div>
+          <div class="fr-meta">
+            🪡 我的服饰：{{ costume.服饰 }}（{{ costume.民族 }}传统服饰）{{ costume.元素 ? ` · ${costume.元素}` : "" }}
+          </div>
           <div v-for="(d, di) in routeDays" :key="di" class="fr-day"
                :class="{ active: di === dayIndex }" @click="switchDay(di)">
             <div class="fr-day-title">
@@ -146,6 +152,7 @@ import { api } from "../api/index.js";
 import { session } from "../session.js";
 import { assignIcons } from "../assets/poiIcon.js";
 import RealMap from "../components/RealMap.vue";
+import { resolveCostume } from "../assets/ethnicCostume.js";
 
 const router = useRouter();
 
@@ -356,6 +363,9 @@ const regionMeta = computed(() => ({
   民族元素: cityFeature.value?.民族元素 || [],
 }));
 
+// 人物建模的服饰：由当地民族传统服饰决定（详见 assets/ethnicCostume.js）
+const costume = computed(() => resolveCostume(regionMeta.value.民族));
+
 /* ============ 真实地形标注（当地山川/湖泊/特色/建筑类型/民族元素） ============ */
 const terrainLabels = ref([]);
 const floraIcons = ref([]);
@@ -405,9 +415,29 @@ async function loadPoiCoords() {
 }
 
 /* ============ 定位：真实 GPS，失败自动转模拟 ============ */
+const realMapRef = ref(null); // 用于"回到我的位置"时把人偶拉回画面中心
+let recenterPending = false;
+
+// 用户点了"回到我的位置"：已定位则立即把人偶居中，未定位则在拿到首个定位后再居中
+function focusOnMe() {
+  if (gps.lat != null) {
+    realMapRef.value?.recenter();
+    recenterPending = false;
+  } else {
+    recenterPending = true;
+  }
+}
+// 拿到（真实或模拟）首个定位后，若用户此前请求过居中则补上
+function focusIfPending() {
+  if (!recenterPending) return;
+  realMapRef.value?.recenter();
+  recenterPending = false;
+}
+
 function startGps() {
   if (!navigator.geolocation) {
     gpsState.value = "err";
+    recenterPending = true; // 模拟定位时同样把镜头拉到"我"身上，保证人物建模可见
     startSimWalk();
     return;
   }
@@ -418,11 +448,13 @@ function startGps() {
       gpsState.value = "on";
       gps.lat = pos.coords.latitude;
       gps.lon = pos.coords.longitude;
+      focusIfPending();
       autoAdvanceByGps();
     },
     (err) => {
       console.warn("[GPS] 定位失败，改用模拟定位:", err.message);
       gpsState.value = "err";
+      recenterPending = true; // 模拟定位时同样把镜头拉到"我"身上
       startSimWalk();
     },
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 }
@@ -447,6 +479,7 @@ function startSimWalk() {
       if (first) {
         gps.lat = first.纬度;
         gps.lon = first.经度;
+        focusIfPending();
       }
     }
     autoAdvanceByGps();
@@ -587,7 +620,12 @@ function goRoutes() {
 // 回到我的位置（真实 GPS 定位）
 function goWalk() {
   startGps();
-  showToast(gpsState.value === "on" ? "🛰 已回到我的位置" : "🛰 定位中，请允许获取位置权限");
+  focusOnMe(); // 地图随即将镜头拉回我的位置
+  showToast(
+    gps.lat != null
+      ? `📍 已回到我的位置 · 人物已换上${costume.value.服饰}`
+      : "🛰 定位中，请允许获取位置权限"
+  );
 }
 
 function exitToHome() {
@@ -643,6 +681,8 @@ function exitToHome() {
   border: 1px solid #ece6fa; border-radius: 10px; padding: 2px 7px;
 }
 .et-elem { color: #8a6a3a; border-color: #f0e6d6; background: #fffdf7; }
+/* 人物建模当前服饰 */
+.et-costume { color: #8a4a86; border-color: #f2dcf0; background: #fdf7fd; font-weight: 600; }
 
 /* 天数切换 */
 .day-switch { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; }
