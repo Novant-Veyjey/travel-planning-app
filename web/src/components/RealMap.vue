@@ -1,5 +1,5 @@
 <template>
-  <div class="real-map" ref="mapRef" :class="{ night: isNight }"
+  <div class="real-map" ref="mapRef"
        @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp"
        @pointercancel="onUp" @pointerleave="onUp" @dblclick.prevent="onDblClick"
        @wheel.prevent="onWheel">
@@ -20,20 +20,6 @@
       <polyline v-for="(r, i) in roads" :key="'rc'+i" :points="polyPoints(r.坐标)" class="road-casing" />
       <polyline v-for="(r, i) in roads" :key="'rd'+i" :points="polyPoints(r.坐标)"
                 :class="r.类型 === '环线' ? 'road road-ring' : 'road'" />
-
-      <!-- 街区建筑：成片分布的普通楼房（确定性生成，平移不漂移）。
-           三面各自带明暗（正面原色 / 侧面压暗 / 顶面提亮），光从左上打来，
-           缩放到任何级别都是一栋有体积的楼，而不是一块扁平方块 -->
-      <g class="blocks">
-        <g v-for="b in streetBlocks" :key="b.key" :data-key="b.key">
-          <ellipse :cx="b.x + b.w * 0.28" :cy="b.y" :rx="b.w * 0.56" :ry="b.w * 0.2" class="b-shadow" />
-          <g class="blocks-body">
-            <polygon :points="b.front" :fill="b.cFront" />
-            <polygon :points="b.side" :fill="b.cSide" />
-            <polygon :points="b.top" :fill="b.cTop" />
-          </g>
-        </g>
-      </g>
 
       <!-- 只画一段虚线：当前位置 → 下一个要去的地方 -->
       <template v-if="guideTarget">
@@ -109,28 +95,17 @@
       </g>
     </svg>
 
-    <!-- 夜晚星空：只铺在画面上半部（天上），往下渐隐，
-         星星挂在天上而不是压在地面建筑上；不随地图平移缩放，只缓慢闪烁 -->
-    <div v-if="isNight" class="star-layer">
-      <span v-for="(s, i) in stars" :key="'st' + i" class="star" :class="{ 'star-glow': s.glow }"
-            :style="{ left: s.left + '%', top: s.top + '%', width: s.d + 'px',
-                      height: s.d + 'px', animationDelay: s.delay + 's',
-                      animationDuration: s.dur + 's' }"></span>
-    </div>
-
-    <!-- 天气：与当地当前天气一致（雨天落雨、雪天飘雪、晴天出太阳、夜晚出月亮） -->
+    <!-- 天气：与当地当前天气一致（雨天落雨、雪天飘雪、晴天出太阳） -->
     <div v-if="isRain || isSnow" class="wx-tint" :class="isSnow ? 'tint-snow' : 'tint-rain'"></div>
     <div v-if="isRain" class="wx-layer">
-      <!-- 夜里雨点更密、颜色更亮，压在深色底上才看得清 -->
-      <span v-for="n in (isNight ? 52 : 34)" :key="'r'+n" class="wx-drop"
+      <span v-for="n in 34" :key="'r'+n" class="wx-drop"
             :style="{ left: (n * 29) % 100 + '%', animationDelay: (n * 0.11) + 's' }"></span>
     </div>
     <div v-if="isSnow" class="wx-layer">
-      <span v-for="n in (isNight ? 34 : 24)" :key="'s'+n" class="wx-flake"
+      <span v-for="n in 24" :key="'s'+n" class="wx-flake"
             :style="{ left: (n * 37) % 100 + '%', animationDelay: (n * 0.17) + 's' }">❄</span>
     </div>
-    <div v-if="isNight" class="wx-moon">🌙 <em>{{ temp }}°</em></div>
-    <div v-else-if="isSun" class="wx-sun">☀️ <em>{{ temp }}°</em></div>
+    <div v-if="isSun" class="wx-sun">☀️ <em>{{ temp }}°</em></div>
 
     <!-- 比例尺 -->
     <div class="scale-bar">
@@ -236,20 +211,16 @@ function polyPoints(coords) {
     .join(" ");
 }
 
+/* 字符串 → 稳定伪随机整数。
+ * 末尾必须做雪崩混合：单纯 h*33+cp 是线性的，"…|1|2" 与 "…|1|3" 只差 1，
+ * 相邻格子的随机数几乎相同，楼房就会整齐对齐成一片等距网格，而不是自然散布。 */
 function hashOf(s) {
   let h = 5381;
   for (const c of String(s || "")) h = (h * 33 + c.codePointAt(0)) % 100003;
+  h = (h ^ (h >>> 7)) % 100003;
+  h = (Math.imul(h, 2246822519) >>> 0) % 100003;
+  h = (h ^ (h >>> 9)) % 100003;
   return h;
-}
-
-/* 颜色明暗：amt > 0 提亮（往白靠），amt < 0 压暗（往黑靠）。
-   楼房三面用同一个基色派生出不同明度，立体感才自然统一 */
-function shade(hex, amt) {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) =>
-    Math.max(0, Math.min(255, Math.round(amt >= 0 ? v + (255 - v) * amt : v * (1 + amt))))
-  );
-  return `#${ch.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
 /* ============ 天气（与当地实时天气一致：雨天落雨、雪天飘雪、晴天出太阳） ============ */
@@ -257,32 +228,6 @@ const scene = computed(() => props.weather?.场景 || "sunny");
 const isRain = computed(() => scene.value === "rainy" || (props.weather?.雨滴 || 0) > 0);
 const isSnow = computed(() => scene.value === "snowy" || (props.weather?.雪花 || 0) > 0);
 const isSun = computed(() => !isRain.value && !isSnow.value);
-
-/* ============ 夜晚模式：默认始终白天，不再按当地时间自动入夜 ============
- * 需要看夜景时显式加 ?night=1（深色底图 + 星空 + 月亮），其它情况一律白天。 */
-const isNight = computed(() => new URLSearchParams(location.search).get("night") === "1");
-
-// 星空：位置由城市名派生的稳定伪随机数生成（同一城市星图一致），
-// 用百分比固定在"天上"那一层，平移缩放地图时星点不会跟着滑动。
-// 少量亮星带光晕、大小与闪烁节奏各不相同，星点才不会看起来像均匀噪点
-const stars = computed(() => {
-  const seed = hashOf(props.city || "sky");
-  const out = [];
-  for (let i = 0; i < 64; i++) {
-    const a = (seed + i * 613) % 997;
-    const b = (seed + i * 389) % 991;
-    const big = a % 7 === 0; // 约七分之一是亮星
-    out.push({
-      left: +((a / 997) * 100).toFixed(2),
-      top: +((b / 991) * 100).toFixed(2),
-      d: +(big ? 2.6 + ((a >> 4) % 3) * 0.4 : 0.9 + ((a >> 3) % 3) * 0.7).toFixed(1),
-      delay: +((b % 44) / 11).toFixed(1),
-      dur: +(2.4 + (b % 17) / 7).toFixed(1),
-      glow: big,
-    });
-  }
-  return out;
-});
 
 /* ============ 立体山峰：当地山地按真实坐标绘制 ============ */
 const mountains = computed(() =>
@@ -323,100 +268,7 @@ const floraSpots = computed(() => {
   return out.filter((f) => f.x > 0 && f.x < size.w && f.y > 0 && f.y < size.h);
 });
 
-/* ============ 街区建筑：按"可见范围内的固定经纬网格"确定性生成 ============
- * 地标建筑只有 6–18 个，放大后没东西可看；这里按 ~90m 网格补普通楼房。
- * 关键一：每格的取舍/高度/配色都由 (城市+格号) 哈希决定，与当前视野无关，
- *         所以平移、缩放、来回拖动时同一栋楼永远长在同一个经纬度上，不会漂移。
- * 关键二：先按 3×3 格划分"街区"，整片决定留空 / 低层 / 高层，
- *         楼房才会成片聚拢成街区，而不是均匀撒成一片马赛克方块。
- * 关键三：三面由同一基色派生出明暗差（正面原色 / 侧面压暗 / 顶面提亮），
- *         光从左上打来，任何缩放级别下都是一栋有体积的楼。 */
-const BLOCK_COLORS = ["#9fb8d6", "#c9a98a", "#a8c6a2", "#c3a8c9", "#d9c48a", "#8ea9c9"];
-// 夜间换一套更沉的底色：三面仍保留明暗差，才不会糊成一片黑方块
-const BLOCK_COLORS_NIGHT = ["#3a5074", "#52412e", "#3a5244", "#4b3a55", "#544a2e", "#34465e"];
-
-const streetBlocks = computed(() => {
-  const mpp = metersPerPixel.value;
-  // 网格按 45 / 90 / 180m 三档切换，让屏幕上每格维持在 ~12–45px，
-  // 从 1km 视野到街区级都保持相近的楼房密度
-  let cellM = 90;
-  if (90 / mpp < 12) cellM = 180;
-  else if (90 / mpp > 30) cellM = 45;
-  const cellPx = cellM / mpp;
-  if (cellPx < 8) return []; // 视角太远就整体不画，保证流畅
-
-  const seed = hashOf(props.city || "city");
-  const night = isNight.value;
-  const palette = night ? BLOCK_COLORS_NIGHT : BLOCK_COLORS;
-  const latStep = cellM / 111320;
-  const lonStep = cellM / (111320 * Math.cos((center.lat * Math.PI) / 180));
-  const tl = unproject(-cellPx, -cellPx);
-  const br = unproject(size.w + cellPx, size.h + cellPx);
-  // 注意：左上角纬度比右下角大，纬度方向必须取 min/max，否则网格区间为空
-  const i0 = Math.floor(Math.min(tl.lat, br.lat) / latStep);
-  const i1 = Math.ceil(Math.max(tl.lat, br.lat) / latStep);
-  const j0 = Math.floor(Math.min(tl.lon, br.lon) / lonStep);
-  const j1 = Math.ceil(Math.max(tl.lon, br.lon) / lonStep);
-
-  const out = [];
-  for (let i = i0; i <= i1; i++) {
-    for (let j = j0; j <= j1; j++) {
-      // 街区容积率：每 3×3 格共用一个哈希。三成多整片留空（公园/广场/水面），
-      // 剩下的分成低层、多层、高层片区，楼房才有疏有密、成片成团
-      const dRoll =
-        (hashOf(`${seed}|${cellM}|D|${Math.floor(i / 3)}|${Math.floor(j / 3)}`) % 1000) / 1000;
-      if (dRoll < 0.4) continue; // 整片空地
-      const tallZone = dRoll > 0.86; // 高层片区
-      const keepProb = tallZone ? 0.52 : dRoll > 0.66 ? 0.38 : 0.2;
-
-      const h1 = (hashOf(`${seed}|${cellM}|${i}|${j}`) % 1000) / 1000;
-      if (h1 > keepProb) continue; // 街区内留出空隙
-      const h2 = (hashOf(`${seed}|${cellM}|${i}|${j}|b`) % 997) / 997;
-      const lat = (i + 0.12 + h1 * 0.66) * latStep;
-      const lon = (j + 0.12 + h2 * 0.66) * lonStep;
-      // 紧贴地标的格子不画，免得和标志性建筑叠在一起
-      let tooNear = false;
-      for (const b of geo.建筑) {
-        if (
-          Math.abs(b.纬度 - lat) < latStep * 0.9 &&
-          Math.abs(b.经度 - lon) < lonStep * 0.9
-        ) {
-          tooNear = true;
-          break;
-        }
-      }
-      if (tooNear) continue;
-
-      const p = project(lat, lon);
-      if (p.x < -40 || p.x > size.w + 40 || p.y < -60 || p.y > size.h + 40) continue;
-      // 楼体比格子窄一点：既有体量、看得出高度，又留出街道缝隙
-      const w = Math.max(5, Math.min(30, cellPx * (0.46 + h2 * 0.22)));
-      const heightM = tallZone ? 42 + Math.round(h2 * 78) : 10 + Math.round(h2 * 26);
-      // 楼高同时受"真实高度"和"自身宽度"约束：否则街景级会拉成一堆细高柱子
-      const bh = Math.max(5, Math.min(56, w * 3.2, (heightM / mpp) * 1.6));
-      const d = w * 0.42;
-      const { x, y } = p;
-      const base = palette[hashOf(`${seed}|${cellM}|${i}|${j}|c`) % palette.length];
-      out.push({
-        // key 用"格号"而不是下标：平移时 Vue 能复用同一栋楼的 DOM，减少重建
-        key: `${cellM}|${i}|${j}`,
-        x, y, w, h: bh,
-        // 正面用底色，侧面压暗、顶面提亮 → 一致的光照方向，立体但不杂乱。
-        // 三面明暗差拉到 0.76，小尺寸屏幕上也能一眼看出体积
-        cFront: shade(base, night ? -0.1 : 0),
-        cSide: shade(base, -0.44),
-        cTop: shade(base, 0.32),
-        front: `${x - w / 2},${y} ${x + w / 2},${y} ${x + w / 2},${y - bh} ${x - w / 2},${y - bh}`,
-        side: `${x + w / 2},${y} ${x + w / 2 + d},${y - d * 0.6} ${x + w / 2 + d},${y - bh - d * 0.6} ${x + w / 2},${y - bh}`,
-        top: `${x - w / 2},${y - bh} ${x + w / 2},${y - bh} ${x + w / 2 + d},${y - bh - d * 0.6} ${x - w / 2 + d},${y - bh - d * 0.6}`,
-      });
-    }
-  }
-  return out.sort((a, b) => a.y - b.y);
-});
-
 /* ============ 立体标志性建筑：真实高度 + 卡通配色/屋顶/窗户/图标 ============ */
-const BUILDING_COLORS = ["#8fb8e8", "#f0b27a", "#9fd6b0", "#d7a8e0", "#f2c94c"];
 const landmarkIcons = computed(() => {
   const list = assignIcons(geo.建筑.map((b) => ({ 名称: b.名称 })));
   const m = {};
@@ -428,9 +280,10 @@ const visibleBuildings = computed(() => {
   const mpp = metersPerPixel.value;
   const out = [];
   for (const b of geo.建筑) {
-    // 按名称判定形制；自然景观（山/湖/江/岛）返回 null，不建楼，交给山峰与地形标注
+    // 只画有真实形制的地标（塔/楼阁/宫殿/穹顶/桥/城楼/大佛…）：
+    // 自然景观返回 null；generic 就是"一个方块"，同样不画——地图上不要方块
     const shape = buildingShapeOf(b.名称);
-    if (!shape) continue;
+    if (!shape || shape === "generic") continue;
     const p = project(b.纬度, b.经度);
     if (p.x < -70 || p.x > size.w + 70 || p.y < -150 || p.y > size.h + 80) continue;
     // 真实高度 → 屏幕高度（保底 20px，否则远景时地标会缩成看不见的小色块）；
@@ -442,8 +295,6 @@ const visibleBuildings = computed(() => {
     const h = hBase * size2.h;
     const { x, y } = p;
     const { parts, lights } = buildBuildingShape(shape, x, y, w, h);
-    // 通用方块保留按名称派生的随机配色，避免一片同色
-    if (shape === "generic") parts[0].fill = BUILDING_COLORS[hashOf(b.名称) % BUILDING_COLORS.length];
     out.push({
       名称: b.名称,
       高度: b.高度,
@@ -956,13 +807,8 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 .road { fill: none; stroke: #c9d2c2; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .road-ring { stroke: #d8c8a8; }
 
-/* 3D 立体建筑：街区楼房的三面颜色由 JS 从同一基色派生（正面原色 / 侧面压暗 /
-   顶面提亮），这里只保留投影；下面三个类给 cityBuilding.js 的通用形制兜底 */
+/* 立体建筑投影 */
 .b-shadow { fill: rgba(45, 66, 32, 0.18); }
-.blocks-body { shape-rendering: geometricPrecision; }
-.b-front { fill: #8fb8e8; stroke: #6f97c9; stroke-width: 0.5; }
-.b-side { fill: #5d86bd; stroke: #4a6f9f; stroke-width: 0.5; }
-.b-top { fill: #b7d4f7; stroke: #93b6e0; stroke-width: 0.5; }
 .b-label { font-size: 9px; fill: #4a5a44; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 2.5px; }
 
 /* 地点卡通图标标注：圆形底 + 名称（状态配色） */
@@ -996,7 +842,6 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 
 /* 立体建筑细节 */
 .b-window { fill: rgba(255, 255, 255, 0.75); }
-.b-roof { fill: rgba(255, 255, 255, 0.35); stroke: rgba(255, 255, 255, 0.5); stroke-width: 0.5; }
 .b-ico { font-size: 13px; text-anchor: middle; }
 
 /* 天气层 */
@@ -1058,88 +903,4 @@ defineExpose({ fitView, recenter, zoomIn, zoomOut });
 }
 .costume-chip em { font-style: normal; font-size: 10px; color: #b0a3c4; }
 
-/* 月亮（夜里替代太阳） */
-.wx-moon {
-  position: absolute; right: 12px; top: 8px; font-size: 24px;
-  display: flex; align-items: center; gap: 4px; pointer-events: none;
-  filter: drop-shadow(0 0 7px rgba(175, 205, 255, 0.55));
-}
-.wx-moon em {
-  font-style: normal; font-size: 11px; color: #cfe0f5;
-  background: rgba(18, 27, 43, 0.85); padding: 1px 6px; border-radius: 10px;
-}
-
-/* ============ 夜晚：整体换成深色底图（19:00–06:00 自动生效） ============ */
-/* 天幕上深下浅：最上面是夜空，越往下越接近地面，星星就"挂"在最上面那一层 */
-.night { background: #0b1220; box-shadow: inset 0 -18px 26px rgba(0, 0, 0, 0.5); }
-.night .rm-g1 { stop-color: #060b16; }
-.night .rm-g2 { stop-color: #16263e; }
-
-/* 星空：只占画面上半部（天上），越往下越淡，不会盖到地面建筑上；
-   固定不随地图平移缩放，只缓慢闪烁 */
-.star-layer {
-  position: absolute; left: 0; right: 0; top: 0; height: 56%;
-  overflow: hidden; pointer-events: none;
-  opacity: 0.92; mix-blend-mode: screen; /* 叠在深色底图上，不遮挡也不拦截操作 */
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.88) 55%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.88) 55%, transparent 100%);
-}
-.star {
-  position: absolute; border-radius: 50%; background: #fff;
-  opacity: 0.9; animation: twinkle 3.2s ease-in-out infinite;
-}
-/* 亮星：带一圈冷色光晕，把星空拉开层次，不至于全是一样的小白点 */
-.star-glow { box-shadow: 0 0 6px 1.6px rgba(186, 214, 255, 0.8); }
-@keyframes twinkle {
-  0%, 100% { opacity: 0.22; }
-  50% { opacity: 0.95; }
-}
-
-/* 水系 / 道路压成夜色 */
-.night .water-fill { fill: #16405f; stroke: #1d5378; }
-.night .water-line { stroke: #1b4a70; }
-.night .road-casing { stroke: #131c2c; opacity: 0.9; }
-.night .road { stroke: #38455c; }
-.night .road-ring { stroke: #4a4436; }
-
-/* 建筑：形体压暗（留一点本色，别把塔/宫殿的特征色全吃掉），灯光亮成暖黄 */
-.night .b-shadow { fill: rgba(0, 0, 0, 0.45); }
-.night .bldg-body { filter: brightness(0.6) saturate(0.8); }
-.night .b-window { fill: #ffd76a; opacity: 0.95; }
-.night .b-roof { fill: rgba(255, 255, 255, 0.12); stroke: rgba(255, 255, 255, 0.18); }
-
-/* 山峰 / 植被 / 各类标注在深色底上重新配色 */
-.night .mt-shadow { fill: rgba(0, 0, 0, 0.45); }
-.night .mt-left { fill: #2f4a3c; stroke: #26392f; }
-.night .mt-right { fill: #24382e; stroke: #1d2c24; }
-.night .mt-snow { fill: #cfe0f2; opacity: 0.85; }
-.night .flora-ico { opacity: 0.72; }
-.night .b-label, .night .mark-name, .night .mt-label { fill: #e6edf7; stroke: #0b1220; }
-.night .mark-cur .mark-name { fill: #ffc266; }
-.night .terrain-pill { fill: rgba(20, 30, 48, 0.92); stroke: #33415b; }
-.night .terrain-text { fill: #dbe6f5; }
-.night .mark-bg { fill: rgba(18, 27, 43, 0.94); }
-.night .mark-shadow { fill: rgba(0, 0, 0, 0.5); }
-.night .me-tag { fill: #9ec5ff; stroke: #0b1220; }
-.night .guide-line { stroke: #ffa02e; }
-
-/* 夜里下雨/下雪：雨点更亮、天幕更沉 */
-.night .tint-rain { background: linear-gradient(180deg, rgba(10, 18, 32, 0.5), rgba(10, 18, 32, 0.26)); }
-.night .tint-snow { background: linear-gradient(180deg, rgba(90, 120, 165, 0.4), rgba(60, 85, 125, 0.24)); }
-.night .wx-drop { background: rgba(170, 210, 255, 0.95); box-shadow: 0 0 4px rgba(150, 200, 255, 0.6); }
-.night .wx-flake { color: #eaf3ff; opacity: 0.9; }
-
-/* 夜间控件配色 */
-.night .scale-bar, .night .gps-chip, .night .costume-chip {
-  background: rgba(18, 27, 43, 0.9); color: #cfe0f5;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-}
-.night .scale-line { border-color: #cfe0f5; }
-.night .gps-chip { color: #8fc2ff; }
-.night .costume-chip { color: #e0b6dd; }
-.night .costume-chip em { color: #93a2bd; }
-.night .zoom-ctl button {
-  background: rgba(18, 27, 43, 0.9); color: #cfe0f5;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-}
 </style>
